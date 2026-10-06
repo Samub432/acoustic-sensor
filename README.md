@@ -27,18 +27,26 @@ Gas bubbles crossing the acoustic path change how sound travels through the liqu
 
 ## Hardware
 
-Total component cost is roughly **€25–45**, see the **Operating Manual** for further detail!.
+Total component cost is about **€42.70**, see the **Operating Manual** for further detail!
 
-| Part | Qty |
-|---|---|
-| Arduino Uno R3 | 1 |
-| Piezo disc, 27 mm | 2 |
-| LM358 op-amp | 1 |
-| Capacitor 100 nF | 1 |
-| Resistors: 100 kΩ ×1, 1 MΩ ×2, 10 kΩ ×3, 100 Ω ×1 | |
-| Breadboard + jumpers | 1 |
-| 3D-printed holder (Optional but raccomended) | 1 |
-| Couplant (vaseline or ultrasound gel) | |
+All prices are from Amazon, to show how easy the parts are to get; specialized retailers may charge differently. We built everything around an **ELEGOO UNO R3 Super Starter Kit (€37.35)** to show how cheap and accessible the components are: every item marked **\*** in the price column comes in that kit.
+
+| # | Component | Specifications | Qty | Price [€] | Notes |
+|---|---|---|---|---|---|
+| E1 | Arduino Uno R3 or compatible clone | ATmega328P, 16 MHz, 10-bit ADC | 1 | \* | Clones with a CH340 USB converter need its driver |
+| E2 | Piezoelectric disc | Ø 27 mm, brass substrate, PZT, two-wire | 2 (+3 spare) | 15.59 (pack of 20) | Solder joints are fragile |
+| E3 | LM358 op-amp | DIP-8 | 1 (+2 spare) | 3.81 | |
+| E4 | Ceramic capacitor | 100 nF | 1 | \* | AC input coupling |
+| E5 | Resistor | 100 kΩ | 1 | \* | Input |
+| E6 | Resistor | 1 MΩ | 2 | \* | In parallel: 500 kΩ feedback |
+| E7 | Resistor | 10 kΩ | 3 | \* | Two for the bias divider, one to protect A0 |
+| E8 | Resistor | 100 Ω | 1 | \* | In series with TX |
+| E9 | Breadboard + jumpers | | 1 | \* | Move to stripboard or PCB later |
+| E10 | USB A-B cable | | 1 | \* | |
+
+**Total: €42.70** (kit + LM358 + the two piezo discs actually used, pro-rated from the pack of 20).
+
+Also needed, not in the total: a 3D-printed holder (optional but recommended) and a couplant (vaseline or ultrasound gel).
 
 Wiring in short:
 
@@ -83,14 +91,14 @@ See the **User guide** for the entire process.
 
 | File | What it does |
 |---|---|
-| `Acoustic_Sensor/Acoustic_Sensor.ino` | Measuring firmware. Has to be on the board for every session. |
-| `test_pin.ino`, `test_TX_TR.ino` | Hardware checks before the first session or after a repair. |
-| `python/acoustic_common.py` | Shared functions. Scripts 01–04 won't run without it. |
-| `python/01_data_from_sensor.py` | Records one block of data to CSV. |
-| `python/02_analysis.py` | Spectral plots: last sweep, waterfall, comparison with a baseline. |
-| `python/03_features.py` | Main analysis: features over time, quality check, light/dark comparison. |
-| `python/04_realtime_monitor.py` | Live view during mounting and warm-up. |
-| `python/trials/` | Raw data from our validation trials, so you can rerun everything. |
+| Acoustic_Sensor/Acoustic_Sensor.ino | Measuring firmware. Has to be on the board for every session. |
+| test_pin.ino, test_TX_TR.ino | Hardware checks before the first session or after a repair. |
+| python/acoustic_common.py | Shared functions. Scripts 01–04 won't run without it. |
+| python/01_data_from_sensor.py | Records one block of data to CSV. |
+| python/02_analysis.py | Spectral plots: last sweep, waterfall, comparison with a baseline. |
+| python/03_features.py | Main analysis: features over time, quality check, light/dark comparison. |
+| python/04_realtime_monitor.py | Live view during mounting and warm-up. |
+| python/trials/ | Raw data from our validation trials, so you can rerun everything. |
 
 
 ## If you build one
@@ -106,4 +114,4 @@ Documentation and data (manuals, figures, trials/): CC BY 4.0
 ## Team
 
 iGEM 2026 Uni-Padua-IT, University of Padova.
-Team mail: mutans.biologia@unipd.it
+Team email: mutans.biologia@unipd.it
