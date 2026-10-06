@@ -109,7 +109,7 @@ We'd genuinely love to hear about it, especially if something in the manual didn
 
 Software (firmware and Python): MIT\
 Hardware (circuit, BOM, 3D-printed holder): CERN-OHL-P-2.0\
-Documentation and data (manuals, figures, trials/): CC BY 4.0\
+Documentation and data (manuals, figures, trials/): CC BY 4.0
 
 ## Team
 

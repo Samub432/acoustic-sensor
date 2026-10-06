@@ -126,6 +126,7 @@ void parse_command(char cmd) {
       break;
     case 'X':
       // total stop of trasmission TX
+      mode = 'I';
       tx_off();
       Serial.println("# TX OFF");
       break;
