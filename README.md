@@ -29,7 +29,7 @@ Gas bubbles crossing the acoustic path change how sound travels through the liqu
 
 Total component cost is about **€42.70**, see the **Operating Manual** for further detail!
 
-All prices are from Amazon, to show how easy the parts are to get; specialized retailers may charge differently. We built everything around an **ELEGOO UNO R3 Super Starter Kit (€37.35)** to show how cheap and accessible the components are: every item marked **\*** in the price column comes in that kit.
+All prices are from Amazon, to show how easy the parts are to get, specialized retailers may charge differently. We built everything around an **ELEGOO UNO R3 Super Starter Kit (€37.35)** to show how cheap and accessible the components are: every item marked **\*** in the price column comes in that kit.
 
 | # | Component | Specifications | Qty | Price [€] | Notes |
 |---|---|---|---|---|---|
@@ -107,9 +107,9 @@ We'd genuinely love to hear about it, especially if something in the manual didn
 
 ## License
 
-Software (firmware and Python): MIT
-Hardware (circuit, BOM, 3D-printed holder): CERN-OHL-P-2.0
-Documentation and data (manuals, figures, trials/): CC BY 4.0
+Software (firmware and Python): MIT \n
+Hardware (circuit, BOM, 3D-printed holder): CERN-OHL-P-2.0 \n
+Documentation and data (manuals, figures, trials/): CC BY 4.0 \n
 
 ## Team
 
