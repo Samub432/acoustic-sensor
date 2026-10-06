@@ -107,11 +107,11 @@ We'd genuinely love to hear about it, especially if something in the manual didn
 
 ## License
 
-Software (firmware and Python): MIT \n
-Hardware (circuit, BOM, 3D-printed holder): CERN-OHL-P-2.0 \n
-Documentation and data (manuals, figures, trials/): CC BY 4.0 \n
+Software (firmware and Python): MIT\
+Hardware (circuit, BOM, 3D-printed holder): CERN-OHL-P-2.0\
+Documentation and data (manuals, figures, trials/): CC BY 4.0\
 
 ## Team
 
-iGEM 2026 Uni-Padua-IT, University of Padova.
+iGEM 2026 Uni-Padua-IT, University of Padova.\
 Team email: mutans.biologia@unipd.it
