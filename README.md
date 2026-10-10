@@ -99,6 +99,7 @@ See the **User guide** for the entire process.
 | python/03_features.py | Main analysis: features over time, quality check, light/dark comparison. |
 | python/04_realtime_monitor.py | Live view during mounting and warm-up. |
 | python/trials/ | Raw data from our validation trials, so you can rerun everything. |
+| docs/ | User Guide and Operating Manual (PDF). |
 
 
 ## If you build one

@@ -40,18 +40,15 @@ Modality is selected by arduino by Python from serial route
 // #define F_MAX    20000
 #define N_STEPS       60  // number of frequency steps
 #define DWELL_MS      80  // ms for every frequency (stabilization + plotting)
-#define N_AVG         32  // legacy: not used, measure_amplitude() works on a timed peak-to-peak window
 
 //  BURST PARAMETERS
 #define BURST_FREQ   8000 // Hz - frequency burst (default)
-#define BURST_MS      500 // time burst (after there is nothing, after there is burst, ...)
 
 // BAUD RATE (For Arduino)
 #define BAUD        115200
 
 // GLOBAL STATE
 char  mode        = 'I';   // current modality: I(idle)/S/B/N/R - starts idle, waits for Python's start command
-bool  tx_active   = false; // Trasmission (TX)
 unsigned long sweep_interval = 5000; // ms beetween sweep 
 
 
