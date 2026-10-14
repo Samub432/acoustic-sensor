@@ -45,5 +45,5 @@ RAW mode sends one raw ADC value per line between `# RAW_START` and `# RAW_END`.
 
 ## Good to know
 
-- Do not change the header line `# ACOUSTIC BIOREACTOR`: `python/acoustic_common.py` uses it to detect board resets.
+- Do not change the `# READY` line: `01_data_from_sensor.py` sends `S` when it sees it, and `python/acoustic_common.py` uses it to detect board resets.
 - Full details: Operating Manual, Ch. 11–12.

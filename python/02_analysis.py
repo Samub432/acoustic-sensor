@@ -1,6 +1,6 @@
 # 02 shows spectra only; all features are computed in 03 via acoustic_common
 """
-ACUSTIC SENSOR FILE 2
+ACOUSTIC SENSOR FILE 2
 ANALYSIS OF THE SWEEP SPECTRA
 
 Read the CSV file produced by the 01 file and produce:

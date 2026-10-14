@@ -1,5 +1,5 @@
 """
-ACUSTIC SENSOR FILE 3
+ACOUSTIC SENSOR FILE 3
 FEATURE EXTRACTION AND INTERPRETATION
 
 We pass from the raw audio signal in the time domain and convert it

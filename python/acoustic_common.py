@@ -1,5 +1,5 @@
 """
-ACUSTIC SENSOR - COMMON CODE
+ACOUSTIC SENSOR - COMMON CODE
 Shared by 01-04: port detection, CSV loading/cleaning, per-sweep features, plot axis helper.
 """
 
@@ -63,10 +63,12 @@ def load_and_segment(csv_path: str):
     df_raw = pd.read_csv(csv_path)
 
     # 01 opens the CSV in append mode, so one file can hold several runs; Arduino resets
-    # at each run and arduino_ms restarts from ~0. Keep only what follows the LAST reset
-    # header (this also drops stale serial-buffer lines). No header (--split files 2+) = keep all.
+    # at each run and arduino_ms restarts from ~0. Keep only what follows the LAST "# READY"
+    # (this also drops stale serial-buffer lines). No "# READY" (--split files 2+) = keep all.
+    # "# READY" is printed by every firmware version (the boot header changed from
+    # "# BIOREATTORE ACUSTICO" to "# ACOUSTIC BIOREACTOR", so it can't be used)
     header_pos = np.flatnonzero(
-        df_raw['raw_line'].astype(str).str.startswith('# ACOUSTIC BIOREACTOR').to_numpy())
+        df_raw['raw_line'].astype(str).str.startswith('# READY').to_numpy())
     if len(header_pos) > 1:
         print(f"[LOAD] {len(header_pos)} runs in the file, keeping only the last one")
     n_stale  = int(header_pos[-1]) if len(header_pos) else 0

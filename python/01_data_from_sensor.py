@@ -1,5 +1,5 @@
 """
-ACUSTIC SENSOR FILE 1
+ACOUSTIC SENSOR FILE 1
 THIS FILE READS DATA FROM THE SERIAL PORT AND SAVES IT TO A CSV FILE.
 What it does:
 - opens the serial port
@@ -96,12 +96,9 @@ def start_logging(port: str, output_path: str | Path, duration_s: float | None =
     try:
         # open the serial port
         ser = serial.Serial(port, BAUD_RATE, timeout=TIMEOUT_S)
-        time.sleep(2)  # wait for the Arduino reset triggered by opening the port (skipping this loses the first lines)
         ser.reset_input_buffer()  # drop bytes left over from before the reset
-
-        # Arduino boots in idle: send the start command so the sweep begins only now
-        ser.write(b'S')
-        print("[CMD] Start sent: S (sweep)")
+        # opening the port resets Arduino, which boots idle: the start command 'S' is sent
+        # when it prints "# READY" (see below), so the boot header is saved in the CSV too
 
         # open the first file (numbered only when the acquisition is split)
         current_path = segment_path(output_path, segment) if split_s else Path(output_path)
@@ -115,16 +112,6 @@ def start_logging(port: str, output_path: str | Path, duration_s: float | None =
             if duration_s and (time.time() - t_start) > duration_s:
                 print(f"\n[INFO] Duration of {duration_s}s reached, stopping.")
                 break
-
-            # the current file is full: close it and open the next one (the serial port stays open)
-            if split_s and (time.time() - t_segment) > split_s:
-                csvfile.close()
-                print(f"[FILE] Closed: {current_path} ({lines_data} valid lines so far)")
-                segment += 1
-                current_path = segment_path(output_path, segment)
-                csvfile, writer = open_csv(current_path)
-                print(f"[FILE] Writing: {current_path}")
-                t_segment = time.time()
 
             # read all the serial lines
             try:
@@ -146,11 +133,26 @@ def start_logging(port: str, output_path: str | Path, duration_s: float | None =
 
             # comment lines from Arduino (they start with '#')
             if line.startswith('#'):
+                # the current file is full: close it and open the next one (the serial port stays open)
+                # rotate only at the start of a sweep, so no sweep is split between two files
+                if split_s and line.startswith('# SWEEP_START') and (time.time() - t_segment) > split_s:
+                    csvfile.close()
+                    print(f"[FILE] Closed: {current_path} ({lines_data} valid lines so far)")
+                    segment += 1
+                    current_path = segment_path(output_path, segment)
+                    csvfile, writer = open_csv(current_path)
+                    print(f"[FILE] Writing: {current_path}")
+                    t_segment = time.time()
+
                 print(f"[ARD] {line}")
                 # save the metadata
                 writer.writerow([
                     time.time(), 0, 0, 0, 'META', line
                 ])
+                # Arduino has (re)booted and is idle: start the sweep
+                if line == '# READY':
+                    ser.write(b'S')
+                    print("[CMD] Start sent: S (sweep)")
                 continue
 
             # lines CSV data (4 fields: freq,ampl,timestamp,mode)

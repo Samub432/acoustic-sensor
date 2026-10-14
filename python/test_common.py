@@ -13,7 +13,8 @@ HEADER = ['pc_timestamp', 'freq_hz', 'ampl_adc', 'arduino_ms', 'mode', 'raw_line
 
 def run_rows(n_sweeps, ampl=100, header=True, last_points=N_STEPS):
     """One Arduino run: optional reset header, then n_sweeps sweeps; arduino_ms restarts from 0."""
-    rows = [[0, 0, 0, 0, 'META', '# ACOUSTIC BIOREACTOR v1.0']] if header else []
+    rows = [[0, 0, 0, 0, 'META', '# ACOUSTIC BIOREACTOR v1.0'],
+            [0, 0, 0, 0, 'META', '# READY']] if header else []
     ms = 0
     for s in range(n_sweeps):
         n = last_points if s == n_sweeps - 1 else N_STEPS
