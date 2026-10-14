@@ -2,8 +2,8 @@
 ACOUSTIC SENSOR FILE 3
 FEATURE EXTRACTION AND INTERPRETATION
 
-We pass from the raw audio signal in the time domain and convert it
-into a set of numerical features that are easier to interpret and track over time.
+Each sweep is a frequency response (peak-to-peak ADC amplitude at each swept frequency):
+it is converted into a set of numerical features that are easier to interpret and track over time.
 
 For each sweep, this features are computed:
 
@@ -14,7 +14,8 @@ FEATURES EXTRACTED PER SWEEP:
 - peak_freq_hz      -> dominant frequency in the spectrum
 - peak_ampl_db      -> raw peak-to-peak ADC of the dominant resonance in dB; coupling check
                        (~150 ADC ≈ 43.5 dB with good coupling), intra-session only
-- rms_abs_db        -> absolute signal energy on raw ADC (root mean square), biological activity
+- rms_abs_db        -> absolute signal energy on raw ADC (root mean square); candidate indicator of
+                       gas/biological activity, not calibrated, intra-session comparisons only
 - high_freq_ratio   -> proportion of energy above a defined threshold (spectral shape descriptor;
                        the bubble-size/granulometry reading is still to be validated with a physical calibration)
 
@@ -42,10 +43,9 @@ from scipy.stats import ttest_1samp
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import argparse
+import sys
 from datetime import datetime
 from pathlib import Path
-import warnings
-warnings.filterwarnings('ignore') # silences the Savitzky-Golay warning when the window is too small for the polynomial degree
 from acoustic_common import (HIGH_FREQ_THRESH, CENTROID_MIN_HALFSPAN_HZ, DB_MIN_HALFSPAN,
                              load_and_segment, extract_feature_single_sweep, set_centered_ylim)
 
@@ -108,15 +108,11 @@ def qc_coupling(df_feat: pd.DataFrame):
     Returns:
         (status, r, n) with status 'OK', 'WARNING' or 'N/A'
     """
-    r = df_feat['peak_ampl_db'].corr(df_feat['centroid_hz'])
     n = int((df_feat['peak_ampl_db'].notna() & df_feat['centroid_hz'].notna()).sum())
     if n < QC_MIN_SWEEPS:
-        status = 'N/A'
-    elif abs(r) >= QC_CORR_THRESH:
-        status = 'WARNING'
-    else:
-        status = 'OK'
-    return status, r, n
+        return 'N/A', np.nan, n   # no corr on too few points (numpy warns on n <= 1)
+    r = df_feat['peak_ampl_db'].corr(df_feat['centroid_hz'])
+    return ('WARNING' if abs(r) >= QC_CORR_THRESH else 'OK'), r, n
 
 
 def qc_text(qc) -> str:
@@ -351,13 +347,16 @@ if __name__ == '__main__':
             state = 'DARK'
         else:
             state = 'NONE'
+            # e.g. sample1_light2.csv: the name mentions a light state but does not start with it
+            if any(k in name for k in ('light', 'dark', 'night')):
+                print("[WARN] The state is NONE: did you forget --state light/dark?")
     settle_s = args.settle if state in ('LIGHT', 'DARK') else 0
 
     # load and segment
     sweeps = load_and_segment(args.csv)
     if not sweeps:
         print("[ERR] No sweeps found: wrong CSV file, or no sweep data in it.")
-        exit(1)
+        sys.exit(1)
 
     # extract features, every sweep will be transformed in a feature vector and stored in a DataFrame
     df_feat = extract_feature_session(sweeps)

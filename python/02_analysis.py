@@ -16,8 +16,9 @@ Read the CSV file produced by the 01 file and produce:
 # show only the waterfall plot
     python 02_analysis.py --csv data/session.csv --show waterfall
 # save the plots as PNG instead of showing them
+# (output: plot_session_last_sweep.png, plot_session_waterfall.png)
     python 02_analysis.py --csv data/session.csv --save
-# Output: plot_session_last_sweep.png, plot_session_waterfall.png
+# compare the session against a baseline recorded separately (see below)
     python 02_analysis.py --csv data/session.csv --baseline data/baseline.csv --show baseline
 
 To record a baseline run on demand (water only),
@@ -32,6 +33,7 @@ import pandas as pd                     #for the CSV file and table
 import matplotlib.pyplot as plt         #for the creation of graph
 from scipy.signal import savgol_filter  #filters and smoothing
 import argparse                         #for the arguments in the terminal
+import sys                              #for the exit with an error code
 from pathlib import Path                #for the management of the path
 from acoustic_common import ANALYSIS_BAND, load_and_segment  # shared loading/cleaning, useful band
 
@@ -210,7 +212,7 @@ def plot_baseline_comparison(sweeps: list, baseline_sweeps: list):
 
     # DELTA SESSION - BASELINE
     ax2 = axes[1]
-    cmap = plt.get_cmap('RdYlGn')  # color = time: red = first sweeps, green = last
+    cmap = plt.get_cmap('viridis')  # color = time: purple = first sweeps, yellow = last (colorblind-safe)
     colors = cmap(np.linspace(0.1, 0.9, len(session_sweeps)))
 
     for i, sweep in enumerate(session_sweeps):
@@ -271,13 +273,15 @@ if __name__ == '__main__':
     parser.add_argument('--save', action='store_true',
                         help='Save plots as PNGs instead of displaying them')
     args = parser.parse_args()
+    if args.show == 'baseline' and not args.baseline:
+        parser.error("--show baseline requires --baseline <file.csv>")  # prints usage, exits with code 2
 
     # load data
     sweeps = load_and_segment(args.csv)
 
     if not sweeps:
         print("[ERR] No sweeps found in the file. Check that Arduino was in sweep mode.")
-        exit(1)
+        sys.exit(1)
 
     print_statistics(sweeps)
 
@@ -299,18 +303,14 @@ if __name__ == '__main__':
             figs.append(('waterfall', fig))
 
     #  BASELINE COMPARISON
-    if args.show in ('all', 'baseline'):
-        if not args.baseline:
-            if args.show == 'baseline':
-                print("[ERR] --show baseline requires --baseline <file.csv>")
-        else:
-            baseline_sweeps = load_and_segment(args.baseline)
-            if baseline_sweeps:
-                print(f"[BASELINE] {len(baseline_sweeps)} sweeps, "
-                      f"{baseline_sweeps[-1]['t_sec'].max():.1f} s")
-            fig = plot_baseline_comparison(sweeps, baseline_sweeps)
-            if fig:
-                figs.append(('baseline_comparison', fig))
+    if args.show in ('all', 'baseline') and args.baseline:
+        baseline_sweeps = load_and_segment(args.baseline)
+        if baseline_sweeps:
+            print(f"[BASELINE] {len(baseline_sweeps)} sweeps, "
+                  f"{baseline_sweeps[-1]['t_sec'].max():.1f} s")
+        fig = plot_baseline_comparison(sweeps, baseline_sweeps)
+        if fig:
+            figs.append(('baseline_comparison', fig))
 
     # save or show
     if args.save:
