@@ -106,14 +106,27 @@ See the **User guide** for the entire process.
 
 We'd genuinely love to hear about it, especially if something in the manual didn't make sense or didn't work for you. Open an issue, that's the most useful feedback we can get.
 
-## Licences
-- Software (Arduino firmware, Python scripts): MIT, see `LICENSE`.
-- Hardware design files (3D-printed holder, circuit): CERN-OHL-S-2.0, see `LICENSE-HARDWARE`.
-- Documentation (Operating Manual, User Guide, figures): CC BY 4.0, see `LICENSE-DOCS`.
+## Authors
 
-If you use or adapt this work, please cite: Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team, Acoustic bubble sensor, https://github.com/Samub432/acoustic-sensor.
+**Samuele Bettiol**, member of the iGEM 2026 Uni-Padua-IT team (MUTANS), University of Padova.
+
+Samuele designed, built and tested the sensor, and wrote all the code and documentation in this repository: the Arduino firmware, the Python acquisition and analysis scripts, the quality-control programs, the experimental protocols, the Operating Manual and the User Guide.
+
+## Contributions
+
+- **Davide Ghedin**, member of the iGEM 2026 Uni-Padua-IT team (MUTANS), University of Padova.
+Davide was responsable for experiments with cyanobacteria cultures, troubleshooting of measurement conditions, sterilisation protocol.
+
+- **AI tools:** Claude (Anthropic) was used to help debug, review the code and proofread the documentation. All design decisions, experiments and results are the team's own work.
 
 ## Team
 
 iGEM 2026 Uni-Padua-IT, University of Padova.\
 Team email: mutans.biologia@unipd.it
+
+## Licences
+- Software (Arduino firmware, Python scripts): MIT, see `LICENSE`.
+- Hardware design files (3D-printed holder, circuit): CERN-OHL-S-2.0, see `LICENSE-HARDWARE`.
+- Documentation (Operating Manual, User Guide): CC BY 4.0, see `LICENSE-DOCS`.
+
+If you use or adapt this work, please cite: Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team, Acoustic sensor, https://github.com/Samub432/acoustic-sensor.

@@ -1,5 +1,3 @@
-// Copyright 2026 Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team
-// SPDX-License-Identifier: MIT
 /*
 TEST - This sketch is used to test the analog input pin of Arduino. 
 It reads the value from the analog pin and sends it to the serial port. 

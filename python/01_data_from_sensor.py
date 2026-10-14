@@ -1,4 +1,4 @@
-# Copyright 2026 Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team
+# Copyright 2026 Samuele Bettiol, iGEM Uni-Padua-IT team
 # SPDX-License-Identifier: MIT
 """
 ACOUSTIC SENSOR FILE 1
