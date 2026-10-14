@@ -30,7 +30,8 @@ The board starts idle. `01_data_from_sensor.py` and `04_realtime_monitor.py` sen
 ## Output
 
 Data lines: `freq_hz,ampl_adc,arduino_ms,mode` with mode `S` (sweep), `P` (passive), `B`, `N`.
-Marker lines start with `#`: `# ACOUSTIC BIOREACTOR v1.0`, `# READY`, `# SWEEP_START,<ms>`, `# SWEEP_END,<ms>`.
+Marker lines start with `#`: `# ACOUSTIC BIOREACTOR v1.0`, `# freq_hz,ampl_adc,arduino_ms,mode`, `# READY`, `# MODE:SWEEP` / `# MODE:BURST` / `# MODE:NOISE` / `# MODE:RAW`, `# TX OFF`, `# SWEEP_START,<ms>`, `# SWEEP_END,<ms>`.
+RAW mode sends one raw ADC value per line between `# RAW_START` and `# RAW_END`.
 
 ## Main constants
 
@@ -38,7 +39,7 @@ Marker lines start with `#`: `# ACOUSTIC BIOREACTOR v1.0`, `# READY`, `# SWEEP_S
 |---|---|
 | `F_MIN` / `F_MAX` | 1000 / 3500 Hz |
 | `N_STEPS` | 60 |
-| `DWELL_MS` | 80 ms per tone (40 ms settle + measurement) |
+| `DWELL_MS` | 80 ms per tone (40 ms settle + ≤ 4 ms measurement + 40 ms wait) |
 | `sweep_interval` | 5000 ms of passive listening |
 | `BAUD` | 115200 |
 

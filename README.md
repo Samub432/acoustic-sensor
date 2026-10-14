@@ -10,11 +10,11 @@ Built by the students of **iGEM 2026 Uni-Padua-IT**.
 
 The idea started from a space problem. If you grow photosynthetic organisms in a sealed life-support bioreactor, you want to know how much gas they're producing, but every time you open the vessel or stick a probe in it you risk contamination, both for the crew and, in the planetary protection sense, for wherever you are. So we asked: can we measure it *through the wall*?
 
-It turns out the same question matters on Earth. Most teaching labs and small research groups can't put a lab-grade dissolved oxygen probe in every flask. A never touches the culture and can be copied for every flask on the shelf seemed worth trying.
+It turns out the same question matters on Earth. Most teaching labs and small research groups can't put a lab-grade dissolved oxygen probe in every flask. A sensor that never touches the culture and can be copied for every flask on the shelf seemed worth trying.
 
 ## How it works
 
-Two 27 mm piezo discs sit on opposite faces of a T25 culture flask (through-transmission). The Arduino sweeps 60 tones from 1 to 3.5 kHz on the transmitter, and the receiver picks up how much of each tone gets through. One sweep takes about 10 seconds.
+Two 27 mm piezo discs sit on opposite faces of a T25 culture flask (through-transmission). The Arduino sweeps 60 tones from 1 to 3.5 kHz on the transmitter, and the receiver picks up how much of each tone gets through. One sweep takes about 5 seconds, followed by 5 seconds of passive listening: a new sweep about every 10 seconds.
 
 Gas bubbles crossing the acoustic path change how sound travels through the liquid. Bubbles appearing and disappearing make the received spectrum flicker from one sweep to the next, and the Python pipeline turns that flicker into numbers you can track over time (spectral centroid, sweep-to-sweep variation, RMS energy, peak amplitude).
 
@@ -27,7 +27,7 @@ Gas bubbles crossing the acoustic path change how sound travels through the liqu
 
 ## Hardware
 
-Total component cost is about **€42.70**, see the **Operating Manual** for further detail!
+Total component cost is about **€42.72**, see the **Operating Manual** for further detail!
 
 All prices are from Amazon, to show how easy the parts are to get, specialized retailers may charge differently. We built everything around an **ELEGOO UNO R3 Super Starter Kit (€37.35)** to show how cheap and accessible the components are: every item marked **\*** in the price column comes in that kit.
 
@@ -44,7 +44,7 @@ All prices are from Amazon, to show how easy the parts are to get, specialized r
 | E9 | Breadboard + jumpers | | 1 | \* | Move to stripboard or PCB later |
 | E10 | USB A-B cable | | 1 | \* | |
 
-**Total: €42.70** (kit + LM358 + the two piezo discs actually used, pro-rated from the pack of 20).
+**Total: €42.72** (kit + LM358 + the two piezo discs actually used, pro-rated from the pack of 20).
 
 Also needed, not in the total: a 3D-printed holder (optional but recommended) and a couplant (vaseline or ultrasound gel).
 
@@ -64,9 +64,9 @@ You need Python 3.10+ and the Arduino IDE.
 cd python
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r ../requirements.txt
 
-# self-checks, all three should pass
+# self-checks, both should pass
 python test_common.py
 python test_split.py
 ```
@@ -92,7 +92,7 @@ See the **User guide** for the entire process.
 | File | What it does |
 |---|---|
 | Acoustic_Sensor/Acoustic_Sensor.ino | Measuring firmware. Has to be on the board for every session. |
-| test_pin.ino, test_TX_TR.ino | Hardware checks before the first session or after a repair. |
+| Arduino test/test_pin/test_pin.ino, Arduino test/test_TX_TR/test_TX_TR.ino | Hardware checks before the first session or after a repair. |
 | python/acoustic_common.py | Shared functions. Scripts 01–04 won't run without it. |
 | python/01_data_from_sensor.py | Records one block of data to CSV. |
 | python/02_analysis.py | Spectral plots: last sweep, waterfall, comparison with a baseline. |
@@ -110,7 +110,7 @@ We'd genuinely love to hear about it, especially if something in the manual didn
 
 Software (firmware and Python): MIT\
 Hardware (circuit, BOM, 3D-printed holder): CERN-OHL-P-2.0\
-Documentation and data (manuals, figures, trials/): CC BY 4.0
+Documentation and data (manuals, figures, python/trials/): CC BY 4.0
 
 ## Team
 

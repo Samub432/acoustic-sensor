@@ -8,12 +8,12 @@ Piezoelectric sensor - Receiver     -> Pin A0 (ADC)
 Led status                          -> Pin 13 (built-in) (FOR DEBUG)
 
 SERIAL PROTOCOL (to send data to python)
-Every line has: "F,AMPL,TIMESTAMP,MODE\n"
-F         = frequency
-AMPL      = peak-to-peak amplitude ADC (vmax - vmin, from 0 to 1023) measured over a
-            window of at least 3 periods of the tone (NOT an average of N samples)
-TIMESTAMP = millis() of Arduino
-MODE      = S(sweep)/P(passive)/B(burst)/N(noise)
+Every line has: "F,AMPL,ARDUINO_MS,MODE\n"
+F          = frequency
+AMPL       = peak-to-peak amplitude ADC (vmax - vmin, from 0 to 1023) measured over a
+             window of at least 3 periods of the tone (NOT an average of N samples)
+ARDUINO_MS = millis() of Arduino
+MODE       = S(sweep)/P(passive)/B(burst)/N(noise)
 RAW mode does not follow this format: one raw ADC value per line, between
 "# RAW_START" and "# RAW_END"
 
@@ -77,7 +77,7 @@ void setup() {
 
   // header CSV for Python
   Serial.println("# ACOUSTIC BIOREACTOR v1.0");
-  Serial.println("# freq_hz,ampl_adc,timestamp_ms,mode");
+  Serial.println("# freq_hz,ampl_adc,arduino_ms,mode");
   Serial.println("# READY");
 
   digitalWrite(PIN_LED, HIGH);

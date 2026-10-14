@@ -6,7 +6,7 @@ Upload one, open the Serial Monitor at **115200 baud**, check the numbers, then 
 | Sketch | What it does | What it checks |
 |---|---|---|
 | `test_pin/test_pin.ino` | Prints the raw value of A0 every 20 ms | Front-end bias and the wiring to A0 |
-| `test_TX_TR/test_TX_TR.ino` | Plays a continuous 4 kHz tone on pin 9 and prints `min  max  peak-to-peak` of A0 every ≈ 23 ms | That sound gets from the TX disc to the RX disc |
+| `test_TX_TR/test_TX_TR.ino` | Plays a continuous tone at `TEST_FREQ` (default 4 kHz, change it freely, e.g. ~1550 Hz, the dominant loaded resonance) on pin 9 and prints `min  max  peak-to-peak` of A0 every ≈ 23 ms | That sound gets from the TX disc to the RX disc |
 
 ## test_pin: expected result
 
