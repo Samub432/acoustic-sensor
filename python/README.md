@@ -10,7 +10,7 @@ python test_common.py      # prints "ok"
 python test_split.py       # prints "ok"
 ```
 
-Python 3.10 or newer.
+Python 3.11 or newer (tested with 3.12).
 
 ## Files
 

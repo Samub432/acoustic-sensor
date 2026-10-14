@@ -1,3 +1,5 @@
+# Copyright 2026 Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team
+# SPDX-License-Identifier: MIT
 """
 ACOUSTIC SENSOR - COMMON CODE
 Shared by 01-04: port detection, CSV loading/cleaning, per-sweep features, plot axis helper.

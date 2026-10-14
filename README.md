@@ -58,7 +58,7 @@ The full step-by-step build, with the multimeter checks, is in the Operating Man
 
 ## Getting started
 
-You need Python 3.10+ and the Arduino IDE.
+You need Python 3.11+ (tested with 3.12) and the Arduino IDE.
 
 ```bash
 cd python
@@ -106,11 +106,12 @@ See the **User guide** for the entire process.
 
 We'd genuinely love to hear about it, especially if something in the manual didn't make sense or didn't work for you. Open an issue, that's the most useful feedback we can get.
 
-## License
+## Licences
+- Software (Arduino firmware, Python scripts): MIT, see `LICENSE`.
+- Hardware design files (3D-printed holder, circuit): CERN-OHL-S-2.0, see `LICENSE-HARDWARE`.
+- Documentation (Operating Manual, User Guide, figures): CC BY 4.0, see `LICENSE-DOCS`.
 
-Software (firmware and Python): MIT\
-Hardware (circuit, BOM, 3D-printed holder): CERN-OHL-P-2.0\
-Documentation and data (manuals, figures, python/trials/): CC BY 4.0
+If you use or adapt this work, please cite: Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team, Acoustic bubble sensor, https://github.com/Samub432/acoustic-sensor.
 
 ## Team
 

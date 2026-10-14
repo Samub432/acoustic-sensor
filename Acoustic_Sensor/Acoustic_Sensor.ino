@@ -1,3 +1,5 @@
+// Copyright 2026 Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team
+// SPDX-License-Identifier: MIT
 /*  
 ACOUSTIC BIOREACTOR - PROGRAM FOR ARDUINO UNO R3
 Transmission of the sweep and acquisition of the data

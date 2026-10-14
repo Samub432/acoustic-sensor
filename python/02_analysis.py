@@ -1,4 +1,5 @@
-# 02 shows spectra only; all features are computed in 03 via acoustic_common
+# Copyright 2026 Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team
+# SPDX-License-Identifier: MIT
 """
 ACOUSTIC SENSOR FILE 2
 ANALYSIS OF THE SWEEP SPECTRA

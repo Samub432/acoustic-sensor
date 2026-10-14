@@ -1,3 +1,5 @@
+// Copyright 2026 Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team
+// SPDX-License-Identifier: MIT
 /*
 TEST - This sketch is used to test the TX -> RX acoustic path.
 The TX piezo (pin 9) emits a continuous tone at TEST_FREQ, while the RX piezo (pin A0)

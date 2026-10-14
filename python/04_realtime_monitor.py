@@ -1,7 +1,7 @@
+# Copyright 2026 Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team
+# SPDX-License-Identifier: MIT
 """
-
  ACOUSTIC BIOREACTOR — Step 4: Real-time live monitor
-
 
 Matplotlib window updated in real time while Arduino
 transmits data. Does not require an intermediate CSV file.

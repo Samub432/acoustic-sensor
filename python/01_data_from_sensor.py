@@ -1,3 +1,5 @@
+# Copyright 2026 Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team
+# SPDX-License-Identifier: MIT
 """
 ACOUSTIC SENSOR FILE 1
 THIS FILE READS DATA FROM THE SERIAL PORT AND SAVES IT TO A CSV FILE.
