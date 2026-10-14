@@ -136,7 +136,7 @@ def start_logging(port: str, output_path: str | Path, duration_s: float | None =
             if not raw:
                 continue  # if there is nothing, continue
 
-            # bytes → string
+            # bytes -> string
             try:
                 line = raw.decode('ascii', errors='replace').strip() 
             except Exception:
