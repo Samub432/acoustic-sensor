@@ -1,30 +1,33 @@
 /*  
-ACUSTIC BIOREACTOR - PROGRAM FOR ARDUINO UNO R3
-Trasmission of the sweep and acquisition of the data
+ACOUSTIC BIOREACTOR - PROGRAM FOR ARDUINO UNO R3
+Transmission of the sweep and acquisition of the data
 
 CONNECTION
-Piezoelectric sensor - Trasmission  -> Pin 9 (PWM)
-Piezoelectric sensor - Receiver    -> Pin A0 (ADC)
+Piezoelectric sensor - Transmission -> Pin 9 (PWM)
+Piezoelectric sensor - Receiver     -> Pin A0 (ADC)
 Led status                          -> Pin 13 (built-in) (FOR DEBUG)
 
 SERIAL PROTOCOL (to send data to python)
-Every lines has: "F,AMPL,TIMESTAMP,MODE\n"
+Every line has: "F,AMPL,TIMESTAMP,MODE\n"
 F         = frequency
 AMPL      = peak-to-peak amplitude ADC (vmax - vmin, from 0 to 1023) measured over a
             window of at least 3 periods of the tone (NOT an average of N samples)
 TIMESTAMP = millis() of Arduino
 MODE      = S(sweep)/P(passive)/B(burst)/N(noise)
+RAW mode does not follow this format: one raw ADC value per line, between
+"# RAW_START" and "# RAW_END"
 
 MODALITY
 1. SWEEP  -> scan from F_MIN to F_MAX in N_STEPS steps
-2. BURST  -> fixed frequency continuous tone, log raw ADC
+2. BURST  -> fixed frequency continuous tone, log peak-to-peak ADC
 3. NOISE  -> TX silence, listen only (noise baseline)
+4. RAW    -> TX silence, dump of 512 raw ADC samples per block
 
-Modality is selected by arduino by Python from serial route
+Modality is selected by Python over serial: S/B/N/R, X = stop
 */
 
 // PIN 
-#define PIN_TX       9    // exit PWM (= Pulse Width Modulation) to Piezoelectric sensor - trasmission
+#define PIN_TX       9    // exit PWM (= Pulse Width Modulation) to Piezoelectric sensor - transmission
 #define PIN_RX      A0    // input ADC piezoelectric sensor - receiver
 #define PIN_LED     13    // Control LED 
 
@@ -49,7 +52,7 @@ Modality is selected by arduino by Python from serial route
 
 // GLOBAL STATE
 char  mode        = 'I';   // current modality: I(idle)/S/B/N/R - starts idle, waits for Python's start command
-unsigned long sweep_interval = 5000; // ms beetween sweep 
+unsigned long sweep_interval = 5000; // ms between sweep 
 
 
 void setup() {
@@ -122,7 +125,7 @@ void parse_command(char cmd) {
       Serial.println("# MODE:RAW");
       break;
     case 'X':
-      // total stop of trasmission TX
+      // total stop of transmission TX
       mode = 'I';
       tx_off();
       Serial.println("# TX OFF");
@@ -163,7 +166,6 @@ void run_sweep() {
 
     // generation on the piezoelectric sensor TX
     tone(PIN_TX, freq);
-    tx_active = true;
 
     // mechanical stabilization of the piezoelectric sensor
     // first 40ms are skipped
@@ -219,7 +221,6 @@ void run_sweep() {
 
 void run_burst() {
   tone(PIN_TX, BURST_FREQ);
-  tx_active = true;
 
   unsigned long t0 = millis();
 
@@ -318,7 +319,6 @@ int measure_amplitude(unsigned int freq) {
 void tx_off() {
   noTone(PIN_TX);
   digitalWrite(PIN_TX, LOW);
-  tx_active = false;
   digitalWrite(PIN_LED, LOW);
   delay(10);
   digitalWrite(PIN_LED, HIGH);
