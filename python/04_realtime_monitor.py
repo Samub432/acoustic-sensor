@@ -21,8 +21,6 @@ USAGE:
 # Linux
     python 04_realtime_monitor.py --port /dev/ttyUSB0
 
-DEPENDENCIES:
-    pip install pyserial numpy pandas scipy matplotlib
 
 """
 
@@ -46,6 +44,7 @@ from acoustic_common import (find_port, extract_feature_single_sweep, set_center
 BAUD_RATE       = 115200
 BUFFER_SWEEP_N  = 40     # how many sweeps to keep in memory (rolling)
 UPDATE_MS       = 200    # ms between plot updates
+SPECTRUM_YMAX_MIN_ADC = 50  # spectrum y axis never shorter than this: the ~10 ADC noise floor stays visibly low
 
 # 
 class DataBuffer:
@@ -108,19 +107,14 @@ class DataBuffer:
         if not (MIN_SWEEP_POINTS <= len(freq) <= N_STEPS and freq[0] <= SWEEP_START_MAX_HZ):
             return
 
-        # features on the RAW arrays (copies, before any normalization)
+        # features on the RAW arrays (copies). A flat sweep (no coupling, discs in air) gives NaN
+        # features: it is still saved, so the spectrum shows the weak signal and the trend
+        # plots show a gap, instead of freezing on the last good sweep
         feat = extract_feature_single_sweep(freq.copy(), ampl.copy())
-        if any(np.isnan(feat[k]) for k in ('centroid_hz', 'rms_abs_db', 'high_freq_ratio')):
-            return
 
-        # normalization for the spectrum plot only
-        ampl -= ampl.min()
-        ampl_lin = np.where(ampl == 0, 1e-9, ampl)
-        ampl_lin /= ampl_lin.max()
-
-        # save to history
+        # save to history (raw ADC: the spectrum level shows the coupling quality)
         self.freq_history.append(freq)
-        self.ampl_history.append(ampl_lin)
+        self.ampl_history.append(ampl)
         self.t_history.append(t)
         self.centroid_hist.append(feat['centroid_hz'])
         self.rms_hist.append(feat['rms_abs_db'])
@@ -150,11 +144,9 @@ def serial_reader_thread(port: str, buffer: DataBuffer, stop_event: threading.Ev
     print(f"[SERIAL] Connecting to {port}...")
     try:
         ser = serial.Serial(port, BAUD_RATE, timeout=1)
-        time.sleep(2)  # wait for Arduino reset
         ser.reset_input_buffer()  # drop bytes left over from before the reset
-        # firmware boots idle: without this command no sweep ever starts
-        ser.write(b'S')
-        print("[CMD] Start sent: S (sweep)")
+        # opening the port resets Arduino, which boots idle: the start command 'S' is sent
+        # when it prints "# READY" (see below), also after an unexpected reset
         print("[SERIAL] Connected. Waiting for data...")
 
         while not stop_event.is_set():
@@ -167,10 +159,7 @@ def serial_reader_thread(port: str, buffer: DataBuffer, stop_event: threading.Ev
             if not raw:
                 continue
 
-            try:
-                line = raw.decode('ascii', errors='replace').strip()
-            except Exception:
-                continue
+            line = raw.decode('ascii', errors='replace').strip()
 
             if line.startswith('# SWEEP_END'):
                 buffer.end_sweep()
@@ -179,6 +168,10 @@ def serial_reader_thread(port: str, buffer: DataBuffer, stop_event: threading.Ev
                 continue  # one per sweep, would flood the console
             if line.startswith('#'):
                 print(f"[ARD] {line}")
+                # Arduino has (re)booted and is idle: start the sweep
+                if line == '# READY':
+                    ser.write(b'S')
+                    print("[CMD] Start sent: S (sweep)")
                 continue
 
             parts = line.split(',')
@@ -241,19 +234,19 @@ def start_monitor(port: str):
 
     # fixed axes configuration
     ax_spectrum.set_xlabel('Frequency (Hz)')
-    ax_spectrum.set_ylabel('Amplitude (norm.)')
+    ax_spectrum.set_ylabel('Amplitude (ADC p-p)')
     ax_spectrum.set_title('Spectrum — current sweep')
     ax_spectrum.set_xscale('log')
     ax_spectrum.set_xlim(ANALYSIS_BAND[0], 3500)  # swept band only, as in 02/03
-    ax_spectrum.set_ylim(-0.05, 1.1)
+    ax_spectrum.set_ylim(0, SPECTRUM_YMAX_MIN_ADC)
     ax_spectrum.grid(True, alpha=0.25, which='both')
 
-    ax_centroid.set_xlabel('Sweep #')
+    ax_centroid.set_xlabel(f'Sweep (last {BUFFER_SWEEP_N})')
     ax_centroid.set_ylabel('Hz')
     ax_centroid.set_title('Spectral centroid')
     ax_centroid.grid(True, alpha=0.25)
 
-    ax_rms.set_xlabel('Sweep #')
+    ax_rms.set_xlabel(f'Sweep (last {BUFFER_SWEEP_N})')
     ax_rms.set_ylabel('dB (ADC)')
     ax_rms.set_title('RMS energy (absolute)')
     ax_rms.grid(True, alpha=0.25)
@@ -265,6 +258,12 @@ def start_monitor(port: str):
     def update(frame):
 
         snap = buffer.snapshot()
+
+        # the serial thread sets stop_event when it ends (cable unplugged, port error)
+        if stop_event.is_set():
+            n_sweep_text.set_text(f"DISCONNECTED — sweep: {snap['n_sweep']}")
+            n_sweep_text.set_color('#C62828')
+            n_sweep_text.set_fontsize(11)
 
         if snap['freq_last'] is None:
             return (line_spectrum, line_spectrum_raw,
@@ -282,8 +281,9 @@ def start_monitor(port: str):
         else:
             ampl_s = ampl
         line_spectrum.set_data(freq, ampl_s)
+        ax_spectrum.set_ylim(0, max(ampl.max() * 1.1, SPECTRUM_YMAX_MIN_ADC))
 
-        # centroid on the spectrum plot
+        # centroid on the spectrum plot (NaN on a flat sweep: the line is not drawn)
         if snap['centroids']:
             vline_centroid.set_xdata([snap['centroids'][-1]])
 
@@ -298,7 +298,8 @@ def start_monitor(port: str):
             ax_rms.set_xlim(0, max(len(xs), 5))
             set_centered_ylim(ax_rms, pd.Series(snap['rms']), DB_MIN_HALFSPAN)
 
-        n_sweep_text.set_text(f"sweep: {snap['n_sweep']}")
+        if not stop_event.is_set():
+            n_sweep_text.set_text(f"sweep: {snap['n_sweep']}")
 
         return (line_spectrum, line_spectrum_raw,
                 vline_centroid, line_centroid, line_rms)
