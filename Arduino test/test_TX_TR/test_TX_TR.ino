@@ -1,3 +1,14 @@
+/*
+TEST - This sketch is used to test the TX -> RX acoustic path.
+The TX piezo (pin 9) emits a continuous tone at TEST_FREQ, while the RX piezo (pin A0)
+is sampled with the fast ADC over a 3 ms window.
+Every line sends "vmin<TAB>vmax<TAB>vmax-vmin" to the serial port (115200 baud):
+readable with the Arduino IDE Serial Monitor or Serial Plotter.
+
+TEST_FREQ is a free parameter: change it to test the path at any frequency
+(for example ~1550 Hz, the dominant loaded resonance measured with the main sketch).
+
+*/
 #define PIN_TX 9
 #define PIN_RX A0
 #define TEST_FREQ 4000  // near the resonance of the 27mm discs
