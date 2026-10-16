@@ -48,6 +48,12 @@ All prices are from Amazon, to show how easy the parts are to get, specialized r
 
 Also needed, not in the total: a 3D-printed holder (optional but recommended) and a couplant (vaseline or ultrasound gel).
 
+### Holder
+
+The 3D-printable holder holds the two piezo discs against opposite faces of the T25 flask, so the acoustic path stays the same from one session to the next. STL, Fusion 360 source and assembly steps are in [`holder/`](holder/README.md).
+
+![Acoustic Sensor holder](holder/Acoustic%20Sensor%20-%20Holder.png)
+
 Wiring in short:
 
 - **TX:** Arduino pin 9 -> 100 Ω -> transmitting piezo.
@@ -99,6 +105,7 @@ See the **User guide** for the entire process.
 | python/03_features.py | Main analysis: features over time, quality check, light/dark comparison. |
 | python/04_realtime_monitor.py | Live view during mounting and warm-up. |
 | python/trials/ | Raw data from our validation trials, so you can rerun everything. |
+| holder/ | 3D-printable holder for the piezo discs (STL, Fusion 360 `.f3d`, preview image). |
 | docs/ | User Guide and Operating Manual (PDF). |
 
 
