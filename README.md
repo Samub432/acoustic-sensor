@@ -1,4 +1,4 @@
-# Acoustic Bubble Sensor for Photobioreactors
+# Acoustic Sensor for Photobioreactors
 
 A cheap, non-invasive way to see gas activity in a culture flask: put a piezo on one side, another on the other side, play some tones through the liquid and listen to what comes out.
 
