@@ -51,9 +51,6 @@ Also needed, not in the total: a 3D-printed holder (optional but recommended) an
 ### Holder
 
 The 3D-printable holder holds the two piezo discs against opposite faces of the T25 flask, so the acoustic path stays the same from one session to the next. STL, Fusion 360 source and assembly steps are in [`holder/`](holder/README.md).
-
-![Acoustic Sensor holder](holder/Acoustic%20Sensor%20-%20Holder.png)
-
 Wiring in short:
 
 - **TX:** Arduino pin 9 -> 100 Ω -> transmitting piezo.
