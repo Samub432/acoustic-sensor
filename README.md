@@ -136,4 +136,4 @@ Team email: mutans.biologia@unipd.it
 - Hardware design files (3D-printed holder, circuit): CERN-OHL-S-2.0, see `LICENSE-HARDWARE`.
 - Documentation (Operating Manual, User Guide): CC BY 4.0, see `LICENSE-DOCS`.
 
-If you use or adapt this work, please cite: Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team, Acoustic sensor, https://github.com/Samub432/acoustic-sensor.
+If you use or adapt this work, please cite: Samuele Bettiol and the iGEM 2026 Uni-Padua-IT team, *Acoustic sensor*, <https://2026.igem.wiki/uni-padua-it/>.
