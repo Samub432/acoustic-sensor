@@ -31,18 +31,18 @@ Total component cost is about **€42.72**, see the **Operating Manual** for fur
 
 All prices are from Amazon, to show how easy the parts are to get, specialized retailers may charge differently. We built everything around an **ELEGOO UNO R3 Super Starter Kit (€37.35)** to show how cheap and accessible the components are: every item marked **\*** in the price column comes in that kit.
 
-| # | Component | Specifications | Qty | Price [€] | Notes |
-|---|---|---|---|---|---|
-| E1 | Arduino Uno R3 or compatible clone | ATmega328P, 16 MHz, 10-bit ADC | 1 | \* | Clones with a CH340 USB converter need its driver |
-| E2 | Piezoelectric disc | Ø 27 mm, brass substrate, PZT, two-wire | 2 (+3 spare) | 15.59 (pack of 20) | Solder joints are fragile |
-| E3 | LM358 op-amp | DIP-8 | 1 (+2 spare) | 3.81 | |
-| E4 | Ceramic capacitor | 100 nF | 1 | \* | AC input coupling |
-| E5 | Resistor | 100 kΩ | 1 | \* | Input |
-| E6 | Resistor | 1 MΩ | 2 | \* | In parallel: 500 kΩ feedback |
-| E7 | Resistor | 10 kΩ | 3 | \* | Two for the bias divider, one to protect A0 |
-| E8 | Resistor | 100 Ω | 1 | \* | In series with TX |
-| E9 | Breadboard + jumpers | | 1 | \* | Move to stripboard or PCB later |
-| E10 | USB A-B cable | | 1 | \* | |
+| Component | Specifications | Qty | Price [€] | Notes |
+|---|---|---|---|---|
+| Arduino Uno R3 or compatible clone | ATmega328P, 16 MHz, 10-bit ADC | 1 | \* | Clones with a CH340 USB converter need its driver |
+| Piezoelectric disc | Ø 27 mm, brass substrate, PZT, two-wire | 2 (+3 spare) | 15.59 (pack of 20) | Solder joints are fragile |
+| LM358 op-amp | DIP-8 | 1 (+2 spare) | 3.81 | |
+| Ceramic capacitor | 100 nF | 1 | \* | AC input coupling |
+| Resistor | 100 kΩ | 1 | \* | Input |
+| Resistor | 1 MΩ | 2 | \* | In parallel: 500 kΩ feedback |
+| Resistor | 10 kΩ | 3 | \* | Two for the bias divider, one to protect A0 |
+| Resistor | 100 Ω | 1 | \* | In series with TX |
+| Breadboard + jumpers | | 1 | \* | Move to stripboard or PCB later |
+| USB A-B cable | | 1 | \* | |
 
 **Total: €42.72** (kit + LM358 + the two piezo discs actually used, pro-rated from the pack of 20).
 
