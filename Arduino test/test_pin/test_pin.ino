@@ -1,7 +1,7 @@
 /*
-TEST - This sketch is used to test the analog input pin of Arduino. 
-It reads the value from the analog pin and sends it to the serial port. 
-The value can be read using the Arduino IDE Serial Monitor or any other serial terminal program.
+TEST - Checks the analog input pin A0.
+Reads A0 and prints the value to the serial port (115200 baud), one line per reading:
+open the Arduino IDE Serial Monitor or Serial Plotter to see it.
 
 */
 #define PIN_RX A0

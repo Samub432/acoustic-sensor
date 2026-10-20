@@ -20,16 +20,15 @@ ANALYSIS_BAND    = (1000, 3200)
 # threshold splitting the useful band into low (1-2 kHz) and high (2-3 kHz).
 # 2000 Hz separates the dominant loaded resonance (~1550 Hz) from the secondary
 # cluster (~2120+ Hz).
-# Was 8000 Hz, but there is no signal above 3 kHz here so it was always ~0.
 HIGH_FREQ_THRESH = 2000    # Hz - threshold for high_freq_ratio calculation
-MIN_AMPL_DB      = -30     # noise threshold (below = ignored)
+MIN_AMPL_DB      = -30     # dB below the sweep peak: weaker bins count as noise and are ignored
 MIN_DYN_ADC      = 20      # min in-band ADC range for a live sweep: noise floor ~10 ADC, good-coupling peak ~150 ADC
 N_STEPS          = 60      # points per sweep, must match the firmware
 MIN_SWEEP_POINTS = 55      # min points for a complete sweep (tolerance for a few lost lines)
 SWEEP_START_MAX_HZ = 1010  # a complete sweep starts at the bottom of the frequency range
 # plot axes (shared by 03 and 04)
-CENTROID_MIN_HALFSPAN_HZ = 20   # baseline centroid sigma measured 3–25 Hz depending on the session: a baseline must look flat, no autoscale on noise
-DB_MIN_HALFSPAN  = 1.0     # clean-file peak noise 0.1–0.3 dB, bubble effect ~4 dB: noise must look flat
+CENTROID_MIN_HALFSPAN_HZ = 20   # baseline centroid sigma measured 3-25 Hz depending on the session: a baseline must look flat, no autoscale on noise
+DB_MIN_HALFSPAN  = 1.0     # clean-file peak noise 0.1-0.3 dB, bubble effect ~4 dB: noise must look flat
 # coupling gate of one block (Operating Manual Ch. 14.6): set on Trial 5, pre-registered for every later session
 GATE_R_MIN         = -0.85  # r(peak, raw centroid) below this: the centroid follows the coupling, not the bubbles
 GATE_PEAK_DROP_MAX = 0.15   # peak change, mean of the last 3 sweeps vs the first 3: a larger loss inflates the S2S
@@ -46,24 +45,22 @@ def find_port():
     Search for the Arduino serial port automatically.
     Returns the port name, or None if no candidate was found.
     """
-    #Import all the ports that Arduino has and put all of them in a list
-    import serial.tools.list_ports
+    import serial.tools.list_ports   # imported here: 02 and 03 work without pyserial
     ports = list(serial.tools.list_ports.comports())
 
+    # first port whose description looks like an Arduino (CH340 = the chip of the clones)
     for p in ports:
-        # If i find in the description of the port one of this name, then print it
         if any(kw in p.description for kw in ['Arduino', 'CH340', 'USB Serial', 'ttyUSB']):
-            print(f"[AUTO] Port found: {p.device} — {p.description}")
+            print(f"[AUTO] Port found: {p.device} - {p.description}")
             return p.device
 
-    # If there are no ports, this message is shown
+    # nothing matched: list what is there, so the user can pick one with --port
     print("[ERR] No Arduino found automatically. Available ports:")
     for p in ports:
         print(f"  {p.device:20s} {p.description}")
     return None
 
 
-#
 def _load_clean(csv_path: str):
     """
     Shared by load_and_segment and passive_noise_adc, so both use the same rows and the same time axis.
@@ -94,7 +91,6 @@ def _load_clean(csv_path: str):
     return df_raw, len(header_pos), n_stale
 
 
-#
 def load_and_segment(csv_path: str):
     """
     Loads a CSV produced by 01, drops stale serial-buffer lines and
@@ -108,6 +104,7 @@ def load_and_segment(csv_path: str):
     if sweep_df.empty:
         print("[WARN] No line in 'S' (sweep) mode was found")
         return []
+    # a new sweep starts where the frequency falls back to the bottom of the range
     freq_diff  = sweep_df['freq_hz'].diff()
     breaks     = sweep_df.index[freq_diff < -sweep_df['freq_hz'] * 0.5].tolist()
     breaks     = [sweep_df.index[0]] + breaks + [sweep_df.index[-1] + 1]
@@ -128,7 +125,6 @@ def load_and_segment(csv_path: str):
     return sweeps
 
 
-#
 def extract_feature_single_sweep(freq: np.ndarray, ampl_raw: np.ndarray) -> dict:
     """
     Extract features from a single sweep of the acoustic signal.
@@ -138,21 +134,21 @@ def extract_feature_single_sweep(freq: np.ndarray, ampl_raw: np.ndarray) -> dict
         ampl_raw: array of raw ADC amplitude (0-1023)
 
     Returns:
-        dict with all the features extracted from the sweep, including:
-        - centroid_hz
+        dict with the features of the sweep (all NaN for a flat or empty sweep):
+        - centroid_hz     (normalized spectrum, bins below MIN_AMPL_DB ignored)
+        - centroid_raw_hz (raw ADC weights, the one used for the S2S)
         - peak_freq_hz    (max of the smoothed, normalized spectrum)
         - peak_ampl_db    (raw peak ADC in dB, coupling check; max of the raw ADC,
                            so it can fall on a different bin than peak_freq_hz)
-        - rms_abs_db      (absolute energy on raw ADC, biological activity)
+        - rms_abs_db      (absolute energy on raw ADC; candidate activity indicator, not calibrated)
         - high_freq_ratio
     """
-    # NaN result reused by the early guards below
     nan_feat = {k: np.nan for k in [
         'centroid_hz', 'centroid_raw_hz', 'peak_freq_hz', 'peak_ampl_db',
         'rms_abs_db', 'high_freq_ratio'
     ]}
 
-    # FIRST PART OF THE FUNCTION: FIRST PREPROCESSING OF THE RAW DATA
+    # PREPROCESSING
     # 0. restrict to the measured useful band BEFORE any feature is computed,
     #    so noise bins above ANALYSIS_BAND never enter centroid/RMS/hfr
     band = (freq >= ANALYSIS_BAND[0]) & (freq <= ANALYSIS_BAND[1])
@@ -164,22 +160,22 @@ def extract_feature_single_sweep(freq: np.ndarray, ampl_raw: np.ndarray) -> dict
     if ampl_raw.max() - ampl_raw.min() < MIN_DYN_ADC:
         return nan_feat
 
-    #  1. normalization
+    #  1. normalization: minimum at 0, maximum at 1, then relative dB
     ampl = ampl_raw.astype(float)
     ampl -= ampl.min()
     ampl_lin = np.where(ampl == 0, 1e-9, ampl)
     ampl_lin = ampl_lin / ampl_lin.max()
     ampl_db  = 20 * np.log10(ampl_lin + 1e-9)
 
-    # 2. ignore frequency under a certain threshold (for noise) (boolean)
+    # 2. bins more than 30 dB below the peak are noise
     valid = ampl_db > MIN_AMPL_DB
-    
-    # 3. if the sweep is completely in the noise and there are too few valid point (under three valid points), return NaN for all features
+
+    # 3. fewer than 3 bins above the noise: nothing to measure
     if valid.sum() < 3:
         return nan_feat
 
-    # SECOND PART OF THE FUNCTION: SMOOTHING AND FEATURE EXTRACTION
-    # smoothing for a more stable peak (only if there are enough points for the Savitzky-Golay filter)
+    # SMOOTHING AND FEATURES
+    # smoothing gives a more stable peak (Savitzky-Golay needs more points than its window)
     if len(ampl_db) > SMOOTH_W:
         # floor before smoothing: the -180 dB min bin would ring into bins ±3 away
         ampl_smooth = np.asarray(savgol_filter(np.maximum(ampl_db, MIN_AMPL_DB), SMOOTH_W, SMOOTH_P))
@@ -201,17 +197,14 @@ def extract_feature_single_sweep(freq: np.ndarray, ampl_raw: np.ndarray) -> dict
 
     #  FEATURE 3: absolute RMS on RAW ADC (band-limited, NOT normalized)
     # Computed on ampl_raw (0-1023 counts) inside ANALYSIS_BAND, before any
-    # normalization -> reflects the real acoustic energy = absolute activity
-    # indicator (amount of gas / biological activity). This is the one to track
-    # over a session.
+    # normalization, so it follows the real acoustic energy. Candidate indicator
+    # of gas/biological activity: not calibrated, compare only within a session.
     rms_abs_db = 10 * np.log10(np.mean(ampl_raw.astype(float) ** 2) + 1e-9)
 
     #  FEATURE 4: high_freq_ratio
     # Spectral shape descriptor: how much energy is in the high frequencies vs total.
     # The granulometric reading (high = small bubbles / low = large bubbles) is a
     # working hypothesis, to be validated with a physical calibration.
-    # HIGH_FREQ_THRESH = 2000 Hz separates the dominant loaded resonance (~1550 Hz)
-    # from the secondary cluster (~2120+ Hz).
     # same 'valid' mask as the centroid: noise bins below MIN_AMPL_DB are ignored
     mask_high = valid & (freq > HIGH_FREQ_THRESH)
     mask_low  = valid & (freq <= HIGH_FREQ_THRESH)
@@ -292,7 +285,6 @@ def passive_noise_adc(csv_path: str, t_from: float = 0.0) -> float:
     return float(np.median(stds)) if len(stds) else np.nan
 
 
-#
 def set_centered_ylim(ax, series: pd.Series, min_half: float):
     """ylim centered on the midpoint (max+min)/2, half-span = max(0.6*(max-min), min_half). NaN ignored."""
     v = series.dropna()

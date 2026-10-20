@@ -4,8 +4,8 @@ Firmware for the Arduino Uno. It has to be on the board for every session.
 
 ## What it does
 
-- Plays a sweep of 60 tones, log-spaced from 1000 to 3500 Hz (generated grid ≈ 999–3427 Hz), on **pin 9** (TX disc).
-- For each tone it measures the **peak-to-peak amplitude** on **A0** (RX disc, through the LM358 front end), 0–1023 ADC.
+- Plays a sweep of 60 tones, log-spaced from 1000 to 3500 Hz (generated grid ≈ 999-3427 Hz), on **pin 9** (TX disc).
+- For each tone it measures the **peak-to-peak amplitude** on **A0** (RX disc, through the LM358 front end), 0-1023 ADC.
 - After each sweep it listens for 5 s with the transmitter off (`P` lines, one every ≈ 100 ms).
 - Result: one sweep about every **10 s**.
 
@@ -46,4 +46,4 @@ RAW mode sends one raw ADC value per line between `# RAW_START` and `# RAW_END`.
 ## Good to know
 
 - Do not change the `# READY` line: `01_data_from_sensor.py` sends `S` when it sees it, and `python/acoustic_common.py` uses it to detect board resets.
-- Full details: Operating Manual, Ch. 11–12.
+- Full details: Operating Manual, Ch. 11-12.

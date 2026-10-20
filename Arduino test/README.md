@@ -10,7 +10,7 @@ Upload one, open the Serial Monitor at **115200 baud**, check the numbers, then 
 
 ## test_pin: expected result
 
-- A steady value around **505–512** (the 2.5 V bias), moving by a few counts.
+- A steady value around **505-512** (the 2.5 V bias), moving by a few counts.
 - Stuck near **0** or **1023**, or drifting: bias missing or op-amp saturated. Pin 3 of the LM358 must read 2.5 V.
 
 ## test_TX_TR: expected result

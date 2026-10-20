@@ -96,7 +96,7 @@ See the **User guide** for the entire process.
 |---|---|
 | Acoustic_Sensor/Acoustic_Sensor.ino | Measuring firmware. Has to be on the board for every session. |
 | Arduino test/test_pin/test_pin.ino, Arduino test/test_TX_TR/test_TX_TR.ino | Hardware checks before the first session or after a repair. |
-| python/acoustic_common.py | Shared functions. Scripts 01–04 won't run without it. |
+| python/acoustic_common.py | Shared functions. Scripts 01-04 won't run without it. |
 | python/01_data_from_sensor.py | Records one block of data to CSV. |
 | python/02_analysis.py | Spectral plots: last sweep, waterfall, comparison with a baseline. |
 | python/03_features.py | Main analysis: features over time, quality check, light/dark comparison. |

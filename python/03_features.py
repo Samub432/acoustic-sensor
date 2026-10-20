@@ -4,10 +4,8 @@
 ACOUSTIC SENSOR FILE 3
 FEATURE EXTRACTION AND INTERPRETATION
 
-Each sweep is a frequency response (peak-to-peak ADC amplitude at each swept frequency):
-it is converted into a set of numerical features that are easier to interpret and track over time.
-
-For each sweep, this features are computed:
+Each sweep is a frequency response (peak-to-peak ADC amplitude at each swept frequency).
+This script turns every sweep into a few numbers that are easier to read and to follow over time.
 
 FEATURES EXTRACTED PER SWEEP:
 - centroid_hz       -> spectral centroid, indicates where most of the energy is concentrated
@@ -20,7 +18,6 @@ FEATURES EXTRACTED PER SWEEP:
                        gas/biological activity, not calibrated, intra-session comparisons only
 - high_freq_ratio   -> proportion of energy above a defined threshold (spectral shape descriptor;
                        the bubble-size/granulometry reading is still to be validated with a physical calibration)
-
 - centroid_raw_hz   -> centroid weighted by the raw ADC amplitude: the centroid used for the S2S
 
 SLOW TREND AND VARIABILITY:
@@ -33,7 +30,7 @@ PER BLOCK (one file = one block, used sweeps only):
                        >= 20 sweeps (Operating Manual Ch. 14.6); passive noise is reported (provisional, <= 2 ADC)
 
 HOW TO USE
-#extract features from a CSV file produced by 01_data_from_sensor.py
+# extract features from a CSV file produced by 01_data_from_sensor.py
     python 03_features.py --csv data/session.csv
 # save the features to a new CSV file
     python 03_features.py --csv data/session.csv --out feature_table.csv
@@ -62,13 +59,12 @@ from acoustic_common import (HIGH_FREQ_THRESH, CENTROID_MIN_HALFSPAN_HZ, DB_MIN_
 
 #  CONFIGURATION
 SLOW_WINDOW_N    = 10      # N sweeps for the "slow" moving average
-# heuristic, set from trials 03–08: coupling-driven files |r| >= 0.68, all others <= 0.54; re-check on new data
+# heuristic, set from trials 03-08: coupling-driven files |r| >= 0.68, all others <= 0.54; re-check on new data
 QC_CORR_THRESH   = 0.6
 QC_MIN_SWEEPS    = 20      # min valid sweeps for a meaningful QC correlation
 SETTLE_S         = 180     # one file = one light block: the light switches at file start; the first minutes are a coupling/thermal transient
 
 
-#
 def extract_feature_session(sweeps: list) -> pd.DataFrame:
     """
     Extracts the features of every sweep and builds a time-indexed DataFrame.
@@ -90,18 +86,17 @@ def extract_feature_session(sweeps: list) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
 
-    #  TIME SCALE SEPARATION
-    # Slow moving average (biological)
+    # slow moving average: the biology changes over minutes, sweep-to-sweep noise does not survive it
     numeric_features = [
         'centroid_hz', 'rms_abs_db', 'high_freq_ratio', 'peak_ampl_db'
     ]
     for col in numeric_features:
-        if col in df.columns: #same operation for all the features
-            # moving average over SLOW_WINDOW_N sweeps
+        if col in df.columns:
             df[f'{col}_slow'] = (
                 df[col].rolling(window=SLOW_WINDOW_N, center=True, min_periods=1).mean())
 
-    # rolling std of the centroid = bubbling index (primary output #2)
+    # rolling std of the centroid: a quick look at the bubbling while the file scrolls;
+    # the number that counts for a block is the S2S (block_metrics)
     df['centroid_sigma_hz'] = (
         df['centroid_hz'].rolling(window=SLOW_WINDOW_N, center=True, min_periods=3).std())
 
@@ -109,7 +104,6 @@ def extract_feature_session(sweeps: list) -> pd.DataFrame:
     return df
 
 
-#
 def qc_coupling(df_feat: pd.DataFrame):
     """
     Coupling QC: if peak amplitude and centroid move together, the session is
@@ -150,7 +144,6 @@ def gate_text(gate: dict) -> str:
     return text
 
 
-#
 def plot_feature_dashboard(df_feat: pd.DataFrame, qc, gate: dict, title: str, settle_s: float):
     """
     Complete dashboard of the features over time.
@@ -167,7 +160,6 @@ def plot_feature_dashboard(df_feat: pd.DataFrame, qc, gate: dict, title: str, se
     fig = plt.figure(figsize=(16, 8))
     gs  = gridspec.GridSpec(3, 2, figure=fig, hspace=0.45, wspace=0.3, top=0.85)  # room for the QC and GATE banners
 
-    # palette
     C_RAW  = "#413e3e"   # grey: raw per-sweep value
     C_SLOW = '#185FA5'   # blue: slow moving average
 
@@ -188,7 +180,7 @@ def plot_feature_dashboard(df_feat: pd.DataFrame, qc, gate: dict, title: str, se
     ax1b.set_title('Centroid variability (rolling sigma)')
     ax1b.grid(True, alpha=0.2)
 
-    #  3. RMS ENERGY — absolute only (rms_abs_db, raw ADC counts)
+    #  3. RMS ENERGY - absolute only (rms_abs_db, raw ADC counts)
     ax2 = fig.add_subplot(gs[1, 0], sharex=ax1)
     ax2.plot(t, df_feat['rms_abs_db'], color=C_RAW, lw=0.8, alpha=0.5)
     ax2.plot(t, df_feat['rms_abs_db_slow'], color=C_SLOW, lw=1.5)
@@ -201,9 +193,9 @@ def plot_feature_dashboard(df_feat: pd.DataFrame, qc, gate: dict, title: str, se
     ax3 = fig.add_subplot(gs[1, 1], sharex=ax1)
     ax3.plot(t, df_feat['high_freq_ratio'], color=C_RAW, lw=0.8, alpha=0.5)
     ax3.plot(t, df_feat['high_freq_ratio_slow'], color=C_SLOW, lw=1.5)
-    ax3.set_ylabel('ratio 0–1')
+    ax3.set_ylabel('ratio 0-1')
     ax3.set_title(f'High freq ratio (> {HIGH_FREQ_THRESH} Hz)\n'
-                  'spectral shape descriptor — granulometry to be validated')
+                  'spectral shape descriptor - granulometry to be validated')
     ax3.set_ylim(0, 1)
     ax3.grid(True, alpha=0.2)
 
@@ -214,7 +206,7 @@ def plot_feature_dashboard(df_feat: pd.DataFrame, qc, gate: dict, title: str, se
     set_centered_ylim(ax4, df_feat['peak_ampl_db'], DB_MIN_HALFSPAN)
     ax4.set_ylabel('dB (ADC)')
     ax4.set_xlabel('Time (s)')
-    ax4.set_title('Peak amplitude — coupling check (raw ADC)')
+    ax4.set_title('Peak amplitude - coupling check (raw ADC)')
     ax4.grid(True, alpha=0.2)
 
     # x tick labels only on the bottom row
@@ -228,7 +220,7 @@ def plot_feature_dashboard(df_feat: pd.DataFrame, qc, gate: dict, title: str, se
                        label='settling (excluded)' if ax is ax1 else None)
         ax1.legend(loc='upper right', fontsize=8)
 
-    fig.suptitle(f'Acoustic feature dashboard — {title}', fontsize=12)
+    fig.suptitle(f'Acoustic feature dashboard - {title}', fontsize=12)
     qc_color = {'WARNING': '#C62828', 'OK': '#2E7D32'}.get(qc[0], '#757575')
     fig.text(0.5, 0.935, qc_text(qc), ha='center', fontsize=10, color=qc_color)
     gate_color = {'FAIL': '#C62828', 'PASS': '#2E7D32'}.get(gate['gate'], '#757575')
@@ -322,12 +314,18 @@ def print_light_dark_comparison(s: pd.DataFrame):
     ok = (blocks['qc_status'] == 'OK') & (blocks['gate'] == 'PASS')
     bad = blocks.loc[~ok]
     if len(bad):
-        print("  excluded (QC/gate): " + ', '.join(f"{r.file} ({'QC ' + r.qc_status if r.qc_status != 'OK' else 'gate FAIL'})"
-                                                   for r in bad.itertuples()))
+        print("  excluded (QC/gate):")
+        for r in bad.itertuples():
+            why = []
+            if r.qc_status != 'OK':
+                why.append(f"QC {r.qc_status}")
+            if r.gate != 'PASS':
+                why.append(f"gate FAIL: {r.gate_reasons}")
+            print(f"    {r.file:<22}{'; '.join(why)}")
     blocks = blocks.loc[ok]
 
     if s['folder'].nunique() > 1:
-        print("  WARNING: blocks from different sessions — comparison skipped (intra-session rule)")
+        print("  WARNING: blocks from different sessions - comparison skipped (intra-session rule)")
         return
 
     blocks = blocks.sort_values('start_time').reset_index(drop=True)
@@ -372,7 +370,7 @@ if __name__ == '__main__':
                         help='Summary CSV: write/replace one row per file and print the light-dark comparison')
     args = parser.parse_args()
 
-    # light state: from the file name unless --state is given
+    # light state: from the file name (light*, night*/dark*) unless --state is given
     csv_path = Path(args.csv)
     name = csv_path.name.lower()
     if args.state:
@@ -390,13 +388,12 @@ if __name__ == '__main__':
                 print("[WARN] The state is NONE: did you forget --state light/dark?")
     settle_s = args.settle if state in ('LIGHT', 'DARK') else 0
 
-    # load and segment
     sweeps = load_and_segment(args.csv)
     if not sweeps:
         print("[ERR] No sweeps found: wrong CSV file, or no sweep data in it.")
         sys.exit(1)
 
-    # extract features, every sweep will be transformed in a feature vector and stored in a DataFrame
+    # one row of features per sweep
     df_feat = extract_feature_session(sweeps)
 
     # settling exclusion: slow curves and centroid_sigma_hz stay on all sweeps,
@@ -414,10 +411,8 @@ if __name__ == '__main__':
     t_from = sweeps[used_idx[0]]['t_sec'].iloc[0] if len(used_idx) else np.inf
     gate['passive_noise_adc'] = passive_noise_adc(args.csv, t_from)
 
-    # print the numeric session summary
     print_summary(df_feat, qc, gate, stats, csv_path.name, state, state_src, settle_s)
 
-    # save features CSV if requested
     if args.out:
         df_feat.to_csv(args.out, index=False)
         print(f"[SAVE] Features: {args.out}")
@@ -446,8 +441,6 @@ if __name__ == '__main__':
         }
         print_light_dark_comparison(update_summary(args.summary, row))
 
-    # plot dashboard in the graphical window (or save as PNG if requested)
-    # panels: centroid, centroid variability, RMS, high frequency ratio, peak amplitude
     fig = plot_feature_dashboard(df_feat, qc, gate, f'{csv_path.name} ({state})', settle_s)
 
     if args.save:

@@ -11,7 +11,7 @@ TEST_FREQ is a free parameter: change it to test the path at any frequency
 */
 #define PIN_TX 9
 #define PIN_RX A0
-#define TEST_FREQ 4000  // near the resonance of the 27mm discs
+#define TEST_FREQ 4000  // near the free resonance of the bare 27 mm discs (in the reactor the peak is ~1550 Hz)
 
 void setup() {
   Serial.begin(115200);

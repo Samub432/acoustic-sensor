@@ -2,41 +2,39 @@
 # SPDX-License-Identifier: MIT
 """
 ACOUSTIC SENSOR FILE 1
-THIS FILE READS DATA FROM THE SERIAL PORT AND SAVES IT TO A CSV FILE.
+READS THE DATA SENT BY ARDUINO OVER SERIAL AND SAVES IT TO A CSV FILE.
 What it does:
-- opens the serial port
-- reads the line of the CSV data send by arduino
-- it saves the data in a CSV data file with timestamp (it saves the time to give a temporal reference to every data line)
-- print a data log on the terminal
-- optionally splits the acquisition in several files, one every N seconds (--split)
+- opens the serial port and starts the sweep as soon as Arduino is ready
+- saves every line it receives, with the PC timestamp next to it
+- prints a short live log to the terminal
+- optionally splits the acquisition into several files, one every N seconds (--split)
 
 #HOW TO USE
 # COMPLETE EXAMPLES:
     python 01_data_from_sensor.py --port COM3 --out data/session.csv --duration 900
     python 01_data_from_sensor.py --port COM3 --out data/session.csv --duration 900 --split 300
-# PARTIAL EXAMPLES:
-auto-detect the port (if there is only one Arduino connected): python 01_data_from_sensor.py
-specify the port (if there are more than one Arduino connected): --port COM3
-output file (default: data/session.csv) for the change in the output file name change session.csv: --out data/session.csv 
-limit the duration of the acquisition (in seconds) (without --duration there is a continuous acquisition): --duration 300
-split the acquisition in one file every N seconds (data/session_001.csv, session_002.csv, ...): --split 300
+# OPTIONS:
+no --port: the port is found automatically (fine with only one Arduino connected)
+--port COM3: pick the port yourself (needed with more than one Arduino)
+--out data/session.csv: output file (this is also the default)
+--duration 300: stop after 300 s (without it, the acquisition runs until Ctrl+C)
+--split 300: a new file every 300 s (data/session_001.csv, session_002.csv, ...)
 # send a command to Arduino (S/B/N/R/X) and exit
     python 01_data_from_sensor.py --port COM3 --cmd S
 
 """
-#IMPORT THE LIBRARY
 import serial   # pip install pyserial
-import csv      # for the csv file
-import time     # import time to manage the timestamp of the data
-import argparse # to read the arguments of the command line (the port and the output file)
-import sys      # for the fast exit of the program
-from pathlib import Path #to manage the path of the output of the files
+import csv
+import time
+import argparse
+import sys
+from pathlib import Path
 from acoustic_common import find_port
 
 # CONFIGURATION
-BAUD_RATE    = 115200   #serial velocity (it must be the same of Arduino)
-TIMEOUT_S    = 2.0      #to stop the program if the data are not received for 2 seconds
-PRINT_EVERY  = 10       #to not slow the program with the log live, it will stamp every 10 lines
+BAUD_RATE    = 115200   # must match BAUD in the Arduino sketch
+TIMEOUT_S    = 2.0      # readline() gives up after 2 s without data, then the loop checks --duration and tries again
+PRINT_EVERY  = 10       # print one data line in 10: printing all of them slows the loop down
 
 #--------------------------
 #       FUNCTION
@@ -58,12 +56,12 @@ def open_csv(path):
     writer  = csv.writer(csvfile)
     if path.stat().st_size == 0:
         writer.writerow([
-            'pc_timestamp',     # timestamp PC (unix)
-            'freq_hz',          # frequency that is generated form Arduino
-            'ampl_adc',         # peak-to-peak amplitude ADC (0-1023)
-            'arduino_ms',       # millis() Arduino
-            'mode',             # S/B/N/P/R
-            'raw_line'          # lines of the file for debug
+            'pc_timestamp',     # PC time (unix seconds)
+            'freq_hz',          # frequency played by Arduino
+            'ampl_adc',         # peak-to-peak amplitude, ADC counts (0-1023)
+            'arduino_ms',       # millis() on Arduino
+            'mode',             # S/B/N/P/R, META for the '#' lines
+            'raw_line'          # the line exactly as received, for debugging
         ])
     return csvfile, writer
 
@@ -81,19 +79,18 @@ def start_logging(port: str, output_path: str | Path, duration_s: float | None =
         split_s: start a new numbered file every split_s seconds (None = one single file)
     """
     
-    # Preliminary preparation of the file
-    output_path = Path(output_path)                         #string to path
-    output_path.parent.mkdir(parents=True, exist_ok=True)   #create a new folder if it does not exist
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"[INFO] Opening port {port} @ {BAUD_RATE} baud")
     print(f"[INFO] Output: {output_path}")
     print("[INFO] Press Ctrl+C to stop\n")
 
-    lines_read   = 0            #lines that are received of the CSV file
-    lines_data   = 0            #lines that are valid of the CSV file
-    t_start     = time.time()   #start time of the session
-    segment      = 1            #number of the current file when --split is used
-    csvfile      = None         #file currently open
+    lines_read   = 0            # every line received, comments included
+    lines_data   = 0            # valid data lines written to the CSV
+    t_start     = time.time()
+    segment      = 1            # number of the current file when --split is used
+    csvfile      = None
 
     try:
         # open the serial port
@@ -106,26 +103,23 @@ def start_logging(port: str, output_path: str | Path, duration_s: float | None =
         current_path = segment_path(output_path, segment) if split_s else Path(output_path)
         csvfile, writer = open_csv(current_path)
         print(f"[FILE] Writing: {current_path}")
-        t_segment = time.time()   #start time of the current file
+        t_segment = time.time()   # start time of the current file
 
         while True:
 
-            # see if the time of the session is right, after a set time it will stop 
             if duration_s and (time.time() - t_start) > duration_s:
                 print(f"\n[INFO] Duration of {duration_s}s reached, stopping.")
                 break
 
-            # read all the serial lines
             try:
-                raw = ser.readline() 
-            except serial.SerialException as e: # for the accidental disconnection of the cable or for similar problem
+                raw = ser.readline()
+            except serial.SerialException as e: # usually the USB cable came out
                 print(f"[ERR] Serial: {e}")
                 break
 
             if not raw:
-                continue  # if there is nothing, continue
+                continue  # timeout, nothing arrived
 
-            # bytes -> string
             try:
                 line = raw.decode('ascii', errors='replace').strip() 
             except Exception:
@@ -147,7 +141,7 @@ def start_logging(port: str, output_path: str | Path, duration_s: float | None =
                     t_segment = time.time()
 
                 print(f"[ARD] {line}")
-                # save the metadata
+                # saved as META: the loaders in acoustic_common look for "# READY" here
                 writer.writerow([
                     time.time(), 0, 0, 0, 'META', line
                 ])
@@ -157,10 +151,10 @@ def start_logging(port: str, output_path: str | Path, duration_s: float | None =
                     print("[CMD] Start sent: S (sweep)")
                 continue
 
-            # lines CSV data (4 fields: freq,ampl,timestamp,mode)
+            # data line: freq,ampl,timestamp,mode
             part = line.split(',')
             if len(part) != 4:
-                continue  # malformed or truncated line, skip it
+                continue  # truncated line, or RAW mode (one value per line): not saved
 
             try:
                 freq      = int(part[0])
@@ -170,18 +164,16 @@ def start_logging(port: str, output_path: str | Path, duration_s: float | None =
             except ValueError:
                 continue  # non-numeric field, skip the line
 
-            pc_ts = time.time() #to synchronize with the pc
+            pc_ts = time.time() # PC clock: puts the rows on real time, arduino_ms restarts at every reset
 
-            # write in the CSV, save all the data
             writer.writerow([pc_ts, freq, ampl, ard_ms, mode_char, line])
 
             lines_data += 1
 
-            # periodic flush (every 50 lines, less lines is better)
+            # flush every 50 lines: if the PC crashes, only the last few seconds are lost
             if lines_data % 50 == 0:
                 csvfile.flush()
 
-            # print on the terminal every PRINT_EVERY lines (not every lines)
             if lines_data % PRINT_EVERY == 0:
                 elapsed = time.time() - t_start
                 print(
@@ -196,7 +188,7 @@ def start_logging(port: str, output_path: str | Path, duration_s: float | None =
         print("\n[INFO] Interrupted by the user...")  # Ctrl+C
 
     except serial.SerialException as e:
-        print(f"[ERR] Cannot open port {port}: {e}") #if the port does not exist
+        print(f"[ERR] Cannot open port {port}: {e}") # wrong port, or already open in the Arduino IDE
         sys.exit(1)
 
     finally: 
@@ -235,17 +227,15 @@ if __name__ == '__main__':
     parser.add_argument('--cmd',   default=None,             help='Send a command to Arduino and exit (S/B/N/R/X)')
     args = parser.parse_args()
 
-    # find the port (auto select if is not specified)
     port = args.port or find_port()
     if port is None:
         print("[ERR] Specify the port with --port")
         sys.exit(1)
 
-    # send the command without the start of the logging
+    # --cmd: send one command and exit, no logging
     if args.cmd:
         send_command(port, args.cmd)
         sys.exit(0)
 
-    # start logging
     start_logging(port, args.out, args.duration, args.split)
 

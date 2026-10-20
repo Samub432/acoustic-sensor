@@ -28,20 +28,19 @@ run the logger separately and point it to its own file:
 
 """
 
-# IMPORT THE LIBRARY -----------------------------------------------------------------------
-import numpy as np                      #for mathematical operations and arrays
-import pandas as pd                     #for the CSV file and table
-import matplotlib.pyplot as plt         #for the creation of graph
-from scipy.signal import savgol_filter  #filters and smoothing
-import argparse                         #for the arguments in the terminal
-import sys                              #for the exit with an error code
-from pathlib import Path                #for the management of the path
-from acoustic_common import ANALYSIS_BAND, load_and_segment  # shared loading/cleaning, useful band
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.signal import savgol_filter
+import argparse
+import sys
+from pathlib import Path
+from acoustic_common import ANALYSIS_BAND, load_and_segment
 
 #CONFIGURATION------------------------------------------------------------------------------
-SMOOTH_WINDOW    = 7       # point for Savitzky-Golay filter (smoothing curve sweep)
+SMOOTH_WINDOW    = 7       # points in the Savitzky-Golay window
 SMOOTH_POLY      = 2       # degree of the smoothing polynomial
-WATERFALL_MAX_N  = 80      # max number of  sweep in the waterfall
+WATERFALL_MAX_N  = 80      # the waterfall shows only the last 80 sweeps, more become unreadable
 NOISE_FLOOR_DB   = -40     # relative dB floor: below this level it is only noise
 
 #--------------------------------------------------------------------------------------------
@@ -72,24 +71,20 @@ def plot_single_sweep(sweep: pd.DataFrame, title: str = "Frequency response"):
     freq  = sweep['freq_hz'].to_numpy()
     ampl  = normalize_amplitude(sweep['ampl_adc'].to_numpy())  # already floored at NOISE_FLOOR_DB
 
-    # smoothing curve (Savitzky Golay filter)
     if len(ampl) > SMOOTH_WINDOW:
         ampl_smooth = np.asarray(savgol_filter(ampl, SMOOTH_WINDOW, SMOOTH_POLY))
     else:
         ampl_smooth = ampl
 
-    #creation of the canvas
     fig, ax = plt.subplots(figsize=(10, 4))
 
-    #raw curve(with light grey background)
+    # raw curve in light grey behind, smoothed curve on top
     ax.plot(freq, ampl, color='#aaaaaa', linewidth=0.8,
             alpha=0.5, label='Raw ADC')
-
-    #smoothed curve (main curve with the data that will be used)
     ax.plot(freq, ampl_smooth, color='#185FA5', linewidth=1.8,
             label='Smoothed')
 
-    #show main peak
+    # main peak, taken on the smoothed curve
     idx_peak = np.argmax(ampl_smooth)
     ax.scatter(freq[idx_peak], ampl_smooth[idx_peak],
                color='#D85A30', s=60, zorder=5,
@@ -104,7 +99,6 @@ def plot_single_sweep(sweep: pd.DataFrame, title: str = "Frequency response"):
     ax.set_xlim(ANALYSIS_BAND[0], 3500)
     ax.grid(True, alpha=0.3, which='both')
 
-    # report the time of the measurement
     t_sweep = sweep['t_sec'].mean()
     ax.text(0.02, 0.97, f't = {t_sweep:.1f}s',
             transform=ax.transAxes, fontsize=9,
@@ -125,14 +119,12 @@ def plot_waterfall(sweeps: list):
         print("[WARN] No sweep for waterfall")
         return None
 
-    # limit the number of sweeps shown, for readability
     sweeps_plot = sweeps[-WATERFALL_MAX_N:]
 
-    # build matrix: lines = time (sweep), column = frequencies
-    # normalizes each sweep to the same frequency grid
+    # matrix: one row per sweep (time), one column per frequency,
+    # all sweeps on the frequency grid of the first one
     n_sweeps = len(sweeps_plot)
 
-    # common frequency grid (use the first sweep as a reference)
     freq_ref = sweeps_plot[0]['freq_hz'].to_numpy()
 
     matrix = np.zeros((n_sweeps, len(freq_ref)))
@@ -142,7 +134,7 @@ def plot_waterfall(sweeps: list):
         freq_s = sweep['freq_hz'].to_numpy()
         ampl_s = normalize_amplitude(sweep['ampl_adc'].to_numpy())
 
-        # interpolate on the reference grid if necessary
+        # a sweep with a few lost lines is interpolated onto the reference grid
         if len(freq_s) == len(freq_ref):
             matrix[i, :] = ampl_s
         else:
@@ -150,12 +142,10 @@ def plot_waterfall(sweeps: list):
 
         times.append(sweep['t_sec'].mean())
 
-    # clip very low values (background noise)
     matrix = np.clip(matrix, NOISE_FLOOR_DB, 0)
 
     fig, ax = plt.subplots(figsize=(10, 5))
 
-    # WATERFALL
     # pcolormesh, not imshow: sweep frequencies are log-spaced, imshow would place columns linearly
     im = ax.pcolormesh(freq_ref, times, matrix, cmap='viridis',  # yellow = high, blue/purple = low
                        shading='nearest')
@@ -163,7 +153,7 @@ def plot_waterfall(sweeps: list):
     plt.colorbar(im, ax=ax, label='relative dB')
     ax.set_xlabel('Frequency (Hz)')
     ax.set_ylabel('Time (s)')
-    ax.set_title('Waterfall — evolution of the acoustic response')
+    ax.set_title('Waterfall - evolution of the acoustic response')
     ax.set_xscale('log')
     ax.set_xlim(ANALYSIS_BAND[0], 3500)  # swept band only, not the empty 3.5-20 kHz
 
@@ -183,7 +173,7 @@ def plot_baseline_comparison(sweeps: list, baseline_sweeps: list):
 
     session_sweeps = sweeps
 
-    # baseline average
+    # mean and spread of the baseline sweeps, on the grid of its first sweep
     freq_ref = baseline_sweeps[0]['freq_hz'].to_numpy()
     baseline_mat = np.array([
         np.interp(
@@ -277,7 +267,6 @@ if __name__ == '__main__':
     if args.show == 'baseline' and not args.baseline:
         parser.error("--show baseline requires --baseline <file.csv>")  # prints usage, exits with code 2
 
-    # load data
     sweeps = load_and_segment(args.csv)
 
     if not sweeps:
@@ -288,7 +277,7 @@ if __name__ == '__main__':
 
     figs = []
 
-    #  SINGLE SWEEP PLOT (only the most recent)
+    #  SINGLE SWEEP PLOT (the most recent one)
     if args.show in ('all', 'sweep'):
         fig = plot_single_sweep(
             sweeps[-1],
@@ -313,7 +302,6 @@ if __name__ == '__main__':
         if fig:
             figs.append(('baseline_comparison', fig))
 
-    # save or show
     if args.save:
         base = Path(args.csv).stem
         for name, fig in figs:

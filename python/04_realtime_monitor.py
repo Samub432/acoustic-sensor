@@ -1,10 +1,10 @@
 # Copyright 2026 Samuele Bettiol, iGEM Uni-Padua-IT team
 # SPDX-License-Identifier: MIT
 """
- ACOUSTIC BIOREACTOR — Step 4: Real-time live monitor
+ ACOUSTIC BIOREACTOR - Step 4: Real-time live monitor
 
 Matplotlib window updated in real time while Arduino
-transmits data. Does not require an intermediate CSV file.
+transmits data. Nothing is saved: to keep the data, use 01.
 
 Shows in real time:
   - current spectrum (last sweep)
@@ -42,11 +42,11 @@ from acoustic_common import (find_port, extract_feature_single_sweep, set_center
 
 #  CONFIGURATION 
 BAUD_RATE       = 115200
-BUFFER_SWEEP_N  = 40     # how many sweeps to keep in memory (rolling)
+BUFFER_SWEEP_N  = 40     # the trend plots show the last 40 sweeps
 UPDATE_MS       = 200    # ms between plot updates
 SPECTRUM_YMAX_MIN_ADC = 50  # spectrum y axis never shorter than this: the ~10 ADC noise floor stays visibly low
 
-# 
+
 class DataBuffer:
     """
     Thread-safe buffer for incoming data from Arduino.
@@ -75,7 +75,7 @@ class DataBuffer:
             if self._sweep_t_start is None:
                 self._sweep_t_start = t_ms
 
-            # detect new sweep (frequency reset)
+            # the frequency falls back to the bottom: a new sweep has started
             if (self._current_sweep_freq and
                     freq_hz < self._current_sweep_freq[-1] * 0.5):
                 self._finalize_sweep()
@@ -98,12 +98,11 @@ class DataBuffer:
         ampl = np.array(self._current_sweep_ampl, dtype=float)
         t    = self._sweep_t_start / 1000.0 if self._sweep_t_start is not None else 0.0
 
-        # reset current sweep
         self._current_sweep_freq = []
         self._current_sweep_ampl = []
         self._sweep_t_start       = None
 
-        # keep only complete sweeps (60 points per sweep, starting at the bottom of the range)
+        # keep only complete sweeps, same rule as load_and_segment
         if not (MIN_SWEEP_POINTS <= len(freq) <= N_STEPS and freq[0] <= SWEEP_START_MAX_HZ):
             return
 
@@ -135,7 +134,6 @@ class DataBuffer:
             }
 
 
-# 
 def serial_reader_thread(port: str, buffer: DataBuffer, stop_event: threading.Event):
     """
     Thread that reads the serial port and fills the buffer.
@@ -186,7 +184,7 @@ def serial_reader_thread(port: str, buffer: DataBuffer, stop_event: threading.Ev
             except ValueError:
                 continue
 
-            # accept only sweep data (mode 'S')
+            # sweep points only: the passive P rows of the pause are not plotted
             if mode == 'S' and freq > 0:
                 buffer.add_point(freq, ampl, t_ms)
 
@@ -198,7 +196,6 @@ def serial_reader_thread(port: str, buffer: DataBuffer, stop_event: threading.Ev
         stop_event.set()
 
 
-# 
 def start_monitor(port: str):
     """
     Starts the real-time monitor with matplotlib animation.
@@ -207,7 +204,7 @@ def start_monitor(port: str):
     buffer     = DataBuffer(max_sweeps=BUFFER_SWEEP_N)
     stop_event = threading.Event()
 
-    # start serial thread in background
+    # the serial port is read in a background thread, so the plot never blocks on readline()
     t = threading.Thread(
         target=serial_reader_thread,
         args=(port, buffer, stop_event),
@@ -235,7 +232,7 @@ def start_monitor(port: str):
     # fixed axes configuration
     ax_spectrum.set_xlabel('Frequency (Hz)')
     ax_spectrum.set_ylabel('Amplitude (ADC p-p)')
-    ax_spectrum.set_title('Spectrum — current sweep')
+    ax_spectrum.set_title('Spectrum - current sweep')
     ax_spectrum.set_xscale('log')
     ax_spectrum.set_xlim(ANALYSIS_BAND[0], 3500)  # swept band only, as in 02/03
     ax_spectrum.set_ylim(0, SPECTRUM_YMAX_MIN_ADC)
@@ -251,7 +248,7 @@ def start_monitor(port: str):
     ax_rms.set_title('RMS energy (absolute)')
     ax_rms.grid(True, alpha=0.25)
 
-    fig.suptitle('ACOUSTIC BIOREACTOR — Live monitor', fontsize=11)
+    fig.suptitle('ACOUSTIC BIOREACTOR - Live monitor', fontsize=11)
     n_sweep_text = fig.text(0.5, 0.02, 'sweep: 0', ha='center', fontsize=8, color='#888888')
 
     #  ANIMATION UPDATE FUNCTION 
@@ -261,7 +258,7 @@ def start_monitor(port: str):
 
         # the serial thread sets stop_event when it ends (cable unplugged, port error)
         if stop_event.is_set():
-            n_sweep_text.set_text(f"DISCONNECTED — sweep: {snap['n_sweep']}")
+            n_sweep_text.set_text(f"DISCONNECTED - sweep: {snap['n_sweep']}")
             n_sweep_text.set_color('#C62828')
             n_sweep_text.set_fontsize(11)
 
@@ -275,7 +272,6 @@ def start_monitor(port: str):
 
         line_spectrum_raw.set_data(freq, ampl)
 
-        # smooth
         if len(ampl) > 7:
             ampl_s = np.asarray(savgol_filter(ampl, 7, 2))
         else:
@@ -304,7 +300,6 @@ def start_monitor(port: str):
         return (line_spectrum, line_spectrum_raw,
                 vline_centroid, line_centroid, line_rms)
 
-    # start animation
     ani = animation.FuncAnimation(
         fig, update,
         interval=UPDATE_MS,
@@ -321,7 +316,6 @@ def start_monitor(port: str):
         print("\n[INFO] Monitor closed")
 
 
-# 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Live monitor for the acoustic bioreactor')

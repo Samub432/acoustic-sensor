@@ -9,15 +9,15 @@ Piezoelectric sensor - Transmission -> Pin 9 (PWM)
 Piezoelectric sensor - Receiver     -> Pin A0 (ADC)
 Led status                          -> Pin 13 (built-in) (FOR DEBUG)
 
-SERIAL PROTOCOL (to send data to python)
-Every line has: "F,AMPL,ARDUINO_MS,MODE\n"
-F          = frequency
+SERIAL PROTOCOL (Arduino -> Python)
+Every data line is: "F,AMPL,ARDUINO_MS,MODE\n"; lines starting with '#' are messages
+F          = frequency in Hz (0 for passive/noise samples)
 AMPL       = peak-to-peak amplitude ADC (vmax - vmin, from 0 to 1023) measured over a
              window of at least 3 periods of the tone (NOT an average of N samples)
 ARDUINO_MS = millis() of Arduino
 MODE       = S(sweep)/P(passive)/B(burst)/N(noise)
 RAW mode does not follow this format: one raw ADC value per line, between
-"# RAW_START" and "# RAW_END"
+"# RAW_START" and "# RAW_END" (01 does not save these lines)
 
 MODALITY
 1. SWEEP  -> scan from F_MIN to F_MAX in N_STEPS steps
@@ -29,32 +29,30 @@ Modality is selected by Python over serial: S/B/N/R, X = stop
 */
 
 // PIN 
-#define PIN_TX       9    // exit PWM (= Pulse Width Modulation) to Piezoelectric sensor - transmission
-#define PIN_RX      A0    // input ADC piezoelectric sensor - receiver
-#define PIN_LED     13    // Control LED 
+#define PIN_TX       9    // tone() output to the TX piezo
+#define PIN_RX      A0    // RX piezo, through the LM358 front end
+#define PIN_LED     13    // on while running, blinks off for 10 ms at every tx_off()
 
 // SWEEP PARAMETERS
-// F_MAX = 3500 Hz: measured useful band is 1-3 kHz (dominant loaded resonance is
+// F_MAX = 3500 Hz: the useful band is 1-3 kHz (dominant loaded resonance
 // ~1550/1583 Hz, secondaries ~2120 and ~2454/2558/2612 Hz); above ~3 kHz there is
-// only noise floor (~10 ADC),
-// so scanning up to 20 kHz was wasted time. We are concentrating the same 60 log steps in
-// 1-3.5 kHz raises frequency resolution ~4x where the signal actually is.
+// only the noise floor (~10 ADC). Keeping the 60 log steps inside 1-3.5 kHz gives
+// ~4x the frequency resolution of a 1-20 kHz sweep, where the signal actually is.
 #define F_MIN       1000  // Hz - minimum frequency
 #define F_MAX       3500  // Hz - maximum frequency (useful band)
 // Wide-band diagnostic mode: uncomment to re-characterize the system (PWM Uno limit ~31kHz)
 // #define F_MAX    20000
 #define N_STEPS       60  // number of frequency steps
-#define DWELL_MS      80  // ms for every frequency (stabilization + plotting)
+#define DWELL_MS      80  // ms per frequency: 40 ms settling, then the measurement, then the rest of the wait
 
 //  BURST PARAMETERS
 #define BURST_FREQ   8000 // Hz - frequency burst (default)
 
-// BAUD RATE (For Arduino)
-#define BAUD        115200
+#define BAUD        115200  // must match BAUD_RATE in the Python scripts
 
 // GLOBAL STATE
 char  mode        = 'I';   // current modality: I(idle)/S/B/N/R - starts idle, waits for Python's start command
-unsigned long sweep_interval = 5000; // ms between sweep 
+unsigned long sweep_interval = 5000; // ms of pause between sweeps, spent listening passively (P lines)
 
 
 void setup() {
@@ -62,22 +60,22 @@ void setup() {
   pinMode(PIN_TX,  OUTPUT);
   pinMode(PIN_LED, OUTPUT);
 
-  // ADC: prescaler at 16 -> ~77kHz sample rate (default 125kHz/10bit)
-  // made samples more faster for signals with high frequency
+  // ADC prescaler 16 instead of the default 128: ~77 kHz sampling instead of ~9.6 kHz,
+  // enough samples per period to catch the peaks of a few-kHz tone
   ADCSRA = (ADCSRA & 0xF8) | 0x04; // prescaler 16
 
-  // discard first 5 samples, because the first sample is always higher than the others, it is a systematic error of the ADC
+  // the first readings after boot come out too high: throw away 5
   for (int i = 0; i < 5; i++) analogRead(PIN_RX);
 
-  // waiting for power supply stabilization
+  // let the power supply settle
   delay(200);
 
-  //For the problem of the first tone, send a short tone at F_MIN
+  // short warm-up tone at F_MIN, otherwise the very first tone after boot comes out wrong
   tone(PIN_TX, F_MIN);
   delay(150);
   noTone(PIN_TX);
 
-  // header CSV for Python
+  // boot header: on "# READY" Python sends 'S' and the sweep starts
   Serial.println("# ACOUSTIC BIOREACTOR v1.0");
   Serial.println("# freq_hz,ampl_adc,arduino_ms,mode");
   Serial.println("# READY");
@@ -88,13 +86,12 @@ void setup() {
 
 void loop() {
 
-  // Arduino see if python has send some command, always
   if (Serial.available()) {
     char cmd = Serial.read();
     parse_command(cmd);
   }
 
-  // selector of state, state machine
+  // run the current mode; each run_* returns when it is done or a command arrives
   switch (mode) {
     case 'I': /* idle: TX off, do nothing until Python sends a command */ break;
     case 'S': run_sweep();  break;
@@ -105,7 +102,7 @@ void loop() {
 }
 
 
-// decode of the instruction send by python
+// commands from Python, one character each; unknown characters are ignored
 
 void parse_command(char cmd) {
   switch (cmd) {
@@ -127,7 +124,7 @@ void parse_command(char cmd) {
       Serial.println("# MODE:RAW");
       break;
     case 'X':
-      // total stop of transmission TX
+      // stop everything: TX off, back to idle
       mode = 'I';
       tx_off();
       Serial.println("# TX OFF");
@@ -141,19 +138,19 @@ void parse_command(char cmd) {
 
 void run_sweep() {
 
-  // logarithmic step calculation (is more useful than linear calculation for acoustics)
-  // f[i] = F_MIN * (F_MAX/F_MIN)^(i/N_STEPS)
+  // log-spaced steps: the same relative resolution at every frequency
+  // f[i] = F_MIN * (F_MAX/F_MIN)^(i/N_STEPS), so the last step is just below F_MAX (~3427 Hz)
   float log_min = log((float)F_MIN);
   float log_max = log((float)F_MAX);
   float log_step = (log_max - log_min) / N_STEPS;
 
-  // marker start sweep for Python
+  // 01 starts a new --split file only on this line, so a sweep is never cut in two
   Serial.print("# SWEEP_START,");
   Serial.println(millis());
 
   for (int i = 0; i < N_STEPS; i++) {
 
-    // if there are interruption by Python, interrupt all the process
+    // only X and N stop a sweep halfway; any other character received here is read and lost
     if (Serial.available()) {
       char cmd = Serial.read();
       if (cmd == 'X' || cmd == 'N') {
@@ -162,21 +159,16 @@ void run_sweep() {
       }
     }
 
-    // calculate current frequency (log scale)
     float f = exp(log_min + log_step * i);
     unsigned int freq = (unsigned int)f;
 
-    // generation on the piezoelectric sensor TX
     tone(PIN_TX, freq);
 
-    // mechanical stabilization of the piezoelectric sensor
-    // first 40ms are skipped
+    // the piezos need time to reach a steady vibration: measure only after 40 ms
     delay(40);
 
-    // measure the peak-to-peak amplitude of the signal at the current frequency
     int ampl = measure_amplitude(freq);
 
-    // waiting for the dwell
     delay(DWELL_MS - 40);
 
     // output CSV: freq,ampl,timestamp,mode
@@ -189,23 +181,22 @@ void run_sweep() {
     Serial.println('S');
   }
 
-  // end sweep - silence TX
   tx_off();
 
   Serial.print("# SWEEP_END,");
   Serial.println(millis());
 
-  // Pause between sweeps
-  // During the pause, listen passively (useful for bubble noise)
+  // pause between sweeps: TX silent, listen passively (bubble noise, interference);
+  // 03 uses these P lines for the passive-noise check
   unsigned long t0 = millis();
   while (millis() - t0 < sweep_interval) {
     if (Serial.available()) {
       parse_command(Serial.read());
       return;
     }
-    // passive sampling every 100ms
+    // one ADC reading every 100 ms
     int passive = analogRead(PIN_RX);
-    Serial.print(0);        // freq=0 for passive hearing
+    Serial.print(0);        // freq=0: nothing is being played
     Serial.print(',');
     Serial.print(passive);
     Serial.print(',');
@@ -218,22 +209,21 @@ void run_sweep() {
 
 
 // MODALITY 2: BURST
-// continuously BURST_FREQ, log peak-to-peak ADC every 50ms
-// Good for the monitoration in real time at static freq 
+// continuous tone at BURST_FREQ, peak-to-peak ADC logged every ~50 ms:
+// useful to watch a single frequency in real time
 
 void run_burst() {
   tone(PIN_TX, BURST_FREQ);
 
   unsigned long t0 = millis();
 
-  while (mode == 'B') { 
+  while (mode == 'B') {
 
     if (Serial.available()) {
       parse_command(Serial.read());
       break;
     }
 
-    //peak-to-peak over a window of at least 3 periods
     int ampl = measure_amplitude(BURST_FREQ);
 
     Serial.print(BURST_FREQ);
@@ -244,14 +234,13 @@ void run_burst() {
     Serial.print(',');
     Serial.println('B');
 
-    delay(50); // 20 Hz log rate
+    delay(50);
   }
 }
 
 
-// MODALITY 3: NOISE (pure listening, TX off)
-// Captures passive acoustic noise from the reactor
-// Includes: bubble noise, pump, background
+// MODALITY 3: NOISE (TX off, listening only)
+// records whatever the RX piezo hears: bubbles, pump, background
 
 void run_noise() {
   tx_off();
@@ -264,6 +253,7 @@ void run_noise() {
     }
 
     int sample = analogRead(PIN_RX);
+    // serial output buffer full: drop the sample rather than block the loop
     if (Serial.availableForWrite() > 20) {
       Serial.print(0);
       Serial.print(',');
@@ -273,19 +263,17 @@ void run_noise() {
       Serial.print(',');
       Serial.println('N');
     }
-    delayMicroseconds(400); // ~2.5kHz sample rate
+    delayMicroseconds(400); // at most ~2.5 kHz; in practice the serial link sets the real rate
   }
 }
 
 
-// MODALITY 4: RAW  raw ADC dump at full speed
-// Only for short acquisitions (serial buffer becomes saturated)
-// In Python: read with read_until or circular buffer
+// MODALITY 4: RAW (TX off, blocks of 512 raw ADC values, one per line)
+// for short diagnostic captures only: no script in python/ reads this format yet
 
 void run_raw() {
   tx_off();
 
-  // send 512 sample raw, then wait
   Serial.println("# RAW_START");
   for (int i = 0; i < 512; i++) {
     Serial.println(analogRead(PIN_RX));
@@ -295,13 +283,12 @@ void run_raw() {
   delay(200); // pause between raw bursts
 }
 
-// Measure the peak-to-peak amplitude (vmax - vmin, 0..1023) of the signal at a given frequency
-// The window must be long enough to capture several periods of the signal, otherwise the amplitude will be underestimated
-// it is necessary because the piezoelectric sensor has a mechanical inertia and the signal is not immediately stable:
-// at 1kHz 3 periods are about 3ms, at 20kHz they are about 0.15ms
+// Peak-to-peak amplitude (vmax - vmin, 0..1023) of the RX signal at a given frequency.
+// The window has to cover a few full periods: a shorter one can miss the true max or min
+// and underestimate the amplitude. 3 periods are ~3 ms at 1 kHz, ~0.15 ms at 20 kHz.
 int measure_amplitude(unsigned int freq) {
   unsigned long period_us = (freq > 0) ? (1000000UL / freq) : 1000UL;
-  unsigned long window_us = 3UL * period_us;   // the minimum window is 3 periods of the signal, to capture the amplitude correctly
+  unsigned long window_us = 3UL * period_us;
   if (window_us < 1500UL) window_us = 1500UL;  // minimum: many samples even at high frequencies
   if (window_us > 4000UL) window_us = 4000UL;  // ceiling: don't slow down too much at 1 kHz
 
@@ -316,7 +303,7 @@ int measure_amplitude(unsigned int freq) {
   return vmax - vmin;   // peak-to-peak amplitude, 0..1023
 }
 
-// UTILITY: TX off
+// silence the TX; the LED blinks off for 10 ms as a visible sign
 
 void tx_off() {
   noTone(PIN_TX);

@@ -54,4 +54,4 @@ The port is found automatically. With more than one Arduino connected the first 
 - Only one program can use the serial port: close the Arduino Serial Monitor and 04 before starting 01.
 - `--save` writes the PNG files in the folder you run the script from, not next to the CSV.
 - Never open and save a raw CSV in Excel: the rows get quoted and the scripts can no longer read the file.
-- How to read the plots? User Guide. Definitions of the metrics? Operating Manual, Ch. 13–14.
+- How to read the plots? User Guide. Definitions of the metrics? Operating Manual, Ch. 13-14.
