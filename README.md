@@ -104,7 +104,10 @@ See the **User guide** for the entire process.
 | python/trials/ | Raw data from our validation trials, so you can rerun everything. |
 | holder/ | 3D-printable holder for the piezo discs (STL, Fusion 360 `.f3d`, preview image). |
 | docs/ | User Guide and Operating Manual (PDF). |
-
+| python/test_common.py, python/test_split.py | Self-checks: run them after installing, both should print "ok". |
+| python/data/ | Where 01 saves your recordings (empty in the repository). |
+| requirements.txt | Python packages to install (pip install -r requirements.txt). |
+| LICENSE, LICENSE-HARDWARE, LICENSE-DOCS | Licences: MIT (software), CERN-OHL-S-2.0 (hardware), CC BY 4.0 (documentation). |
 
 ## If you build one
 
