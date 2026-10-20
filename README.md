@@ -99,7 +99,7 @@ See the **User guide** for the entire process.
 | python/acoustic_common.py | Shared functions. Scripts 01-04 won't run without it. |
 | python/01_data_from_sensor.py | Records one block of data to CSV. |
 | python/02_analysis.py | Spectral plots: last sweep, waterfall, comparison with a baseline. |
-| python/03_features.py | Main analysis: features over time, quality check, light/dark comparison. |
+| python/03_features.py | Main analysis: features over time, quality check, S2S and coupling gate (GATE line), light/dark comparison. |
 | python/04_realtime_monitor.py | Live view during mounting and warm-up. |
 | python/trials/ | Raw data from our validation trials, so you can rerun everything. |
 | holder/ | 3D-printable holder for the piezo discs (STL, Fusion 360 `.f3d`, preview image). |
