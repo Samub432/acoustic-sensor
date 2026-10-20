@@ -21,9 +21,16 @@ FEATURES EXTRACTED PER SWEEP:
 - high_freq_ratio   -> proportion of energy above a defined threshold (spectral shape descriptor;
                        the bubble-size/granulometry reading is still to be validated with a physical calibration)
 
+- centroid_raw_hz   -> centroid weighted by the raw ADC amplitude: the centroid used for the S2S
+
 SLOW TREND AND VARIABILITY:
 - slow              -> moving average over SLOW_WINDOW_N = 10 sweeps (~100 s at the current ~10 s sweep period)
-- centroid_sigma_hz -> centroid variability (rolling std) over the same window
+- centroid_sigma_hz -> centroid variability (rolling std) over the same window (screening only)
+
+PER BLOCK (one file = one block, used sweeps only):
+- S2S               -> primary metric: std of the differences between consecutive raw centroids (Hz)
+- coupling gate     -> PASS/FAIL: r(peak, raw centroid) >= -0.85, peak change >= -15 %, mean peak >= 110 ADC,
+                       >= 20 sweeps (Operating Manual Ch. 14.6); passive noise is reported (provisional, <= 2 ADC)
 
 HOW TO USE
 #extract features from a CSV file produced by 01_data_from_sensor.py
@@ -48,8 +55,9 @@ import argparse
 import sys
 from datetime import datetime
 from pathlib import Path
-from acoustic_common import (HIGH_FREQ_THRESH, CENTROID_MIN_HALFSPAN_HZ, DB_MIN_HALFSPAN,
-                             load_and_segment, extract_feature_single_sweep, set_centered_ylim)
+from acoustic_common import (HIGH_FREQ_THRESH, CENTROID_MIN_HALFSPAN_HZ, DB_MIN_HALFSPAN, PASSIVE_MAX_ADC,
+                             load_and_segment, extract_feature_single_sweep, set_centered_ylim,
+                             block_metrics, passive_noise_adc)
 
 
 #  CONFIGURATION
@@ -128,21 +136,36 @@ def qc_text(qc) -> str:
     return text
 
 
+def gate_text(gate: dict) -> str:
+    """One-line S2S + coupling-gate message, shared by the terminal summary and the dashboard banner."""
+    def f(v, fmt):
+        return format(v, fmt) if pd.notna(v) else 'n/a'
+    text = (f"GATE       {gate['gate']:<10}S2S {f(gate['s2s_hz'], '.1f')} Hz   peak {f(gate['peak_mean_adc'], '.0f')} ADC "
+            f"({f(gate['peak_change_pct'], '+.0f')} %)   r {f(gate['r_peak_centroid'], '+.2f')}   "
+            f"passive {f(gate['passive_noise_adc'], '.1f')} ADC")
+    if gate['gate_reasons']:
+        text += " -> " + ", ".join(gate['gate_reasons'])
+    if gate['passive_noise_adc'] > PASSIVE_MAX_ADC:
+        text += f" [passive > {PASSIVE_MAX_ADC:g} ADC: check interference]"
+    return text
+
+
 #
-def plot_feature_dashboard(df_feat: pd.DataFrame, qc, title: str, settle_s: float):
+def plot_feature_dashboard(df_feat: pd.DataFrame, qc, gate: dict, title: str, settle_s: float):
     """
     Complete dashboard of the features over time.
     Layout: 3 rows x 2 columns, all panels share the time axis
     Row 1: centroid (raw + slow)   | centroid variability (centroid_sigma_hz)
     Row 2: RMS energy (raw + slow) | high freq ratio (raw + slow)
     Row 3: peak amplitude, coupling check (raw + slow), full width
-    QC banner (qc = result of qc_coupling) under the title (file name + state).
+    QC banner (qc = result of qc_coupling) and GATE banner (gate = block_metrics + passive noise)
+    under the title (file name + state).
     The first settle_s seconds (excluded from the statistics) are shaded grey.
     """
     t = df_feat['t_sec'].to_numpy()
 
     fig = plt.figure(figsize=(16, 8))
-    gs  = gridspec.GridSpec(3, 2, figure=fig, hspace=0.45, wspace=0.3)
+    gs  = gridspec.GridSpec(3, 2, figure=fig, hspace=0.45, wspace=0.3, top=0.85)  # room for the QC and GATE banners
 
     # palette
     C_RAW  = "#413e3e"   # grey: raw per-sweep value
@@ -208,6 +231,10 @@ def plot_feature_dashboard(df_feat: pd.DataFrame, qc, title: str, settle_s: floa
     fig.suptitle(f'Acoustic feature dashboard — {title}', fontsize=12)
     qc_color = {'WARNING': '#C62828', 'OK': '#2E7D32'}.get(qc[0], '#757575')
     fig.text(0.5, 0.935, qc_text(qc), ha='center', fontsize=10, color=qc_color)
+    gate_color = {'FAIL': '#C62828', 'PASS': '#2E7D32'}.get(gate['gate'], '#757575')
+    if gate['gate'] == 'PASS' and gate['passive_noise_adc'] > PASSIVE_MAX_ADC:
+        gate_color = '#E65100'   # passes, but the provisional passive-noise check is above threshold
+    fig.text(0.5, 0.905, gate_text(gate), ha='center', fontsize=9, color=gate_color)
     return fig
 
 
@@ -232,11 +259,12 @@ def linear_trend_per_min(df: pd.DataFrame, col: str) -> float:
     return np.polyfit(v['t_sec'], v[col], 1)[0] * 60
 
 
-def print_summary(df_feat: pd.DataFrame, qc, stats: dict, file_name: str,
+def print_summary(df_feat: pd.DataFrame, qc, gate: dict, stats: dict, file_name: str,
                   state: str, state_src: str, settle_s: float):
     """
     Prints a short numeric summary of the session to the terminal.
-    qc = result of qc_coupling, printed right after FILE and SWEEPS (even with too few sweeps).
+    qc = result of qc_coupling, printed right after FILE and SWEEPS (even with too few sweeps),
+    then the GATE line (S2S and coupling gate of the block).
     """
     n_used = int(df_feat['used'].sum())
     print("\n" + "-" * 55)
@@ -246,6 +274,7 @@ def print_summary(df_feat: pd.DataFrame, qc, stats: dict, file_name: str,
     excl = f"first {settle_s:g} s excluded: settling" if settle_s > 0 else "no settling exclusion"
     print(f"  {'SWEEPS':<11}{n_used} used / {len(df_feat)}   ({excl})")
     print("  " + qc_text(qc))
+    print("  " + gate_text(gate))
 
     # too few sweeps to fit a trend
     if n_used < 5:
@@ -265,7 +294,7 @@ def print_summary(df_feat: pd.DataFrame, qc, stats: dict, file_name: str,
     print("-" * 55 + "\n")
 
 
-SUMMARY_FEATURES = ['centroid_hz', 'centroid_sigma_hz', 'rms_abs_db', 'peak_ampl_db', 'high_freq_ratio']
+SUMMARY_FEATURES = ['s2s_hz', 'centroid_hz', 'centroid_sigma_hz', 'rms_abs_db', 'peak_ampl_db', 'high_freq_ratio']
 
 
 def update_summary(summary_path: str, row: dict) -> pd.DataFrame:
@@ -285,10 +314,17 @@ def update_summary(summary_path: str, row: dict) -> pd.DataFrame:
 def print_light_dark_comparison(s: pd.DataFrame):
     """Bracketed LIGHT - DARK comparison over the blocks of the summary CSV."""
     blocks = s.loc[s['state'].isin(['LIGHT', 'DARK'])]
-    bad = blocks.loc[blocks['qc_status'] != 'OK']
+    # an older 03 wrote no gate/S2S columns; appending a new row adds them, NaN on the old rows
+    if ('gate' not in blocks.columns or 's2s_hz' not in blocks.columns
+            or blocks['gate'].isna().any()):
+        print("  summary file written by an older 03 (no gate/S2S columns): delete it and re-run 03 on every block")
+        return
+    ok = (blocks['qc_status'] == 'OK') & (blocks['gate'] == 'PASS')
+    bad = blocks.loc[~ok]
     if len(bad):
-        print(f"  excluded by QC: {', '.join(bad['file'])}")
-    blocks = blocks.loc[blocks['qc_status'] == 'OK']
+        print("  excluded (QC/gate): " + ', '.join(f"{r.file} ({'QC ' + r.qc_status if r.qc_status != 'OK' else 'gate FAIL'})"
+                                                   for r in bad.itertuples()))
+    blocks = blocks.loc[ok]
 
     if s['folder'].nunique() > 1:
         print("  WARNING: blocks from different sessions — comparison skipped (intra-session rule)")
@@ -309,7 +345,7 @@ def print_light_dark_comparison(s: pd.DataFrame):
         return
 
     d = pd.DataFrame(d).astype(float)
-    print("\n  LIGHT - DARK (bracketed, per block)")
+    print("\n  LIGHT - DARK (bracketed, per block; s2s_hz is the primary metric)")
     print(f"  {'feature':<20}{'n':>3}{'mean d':>11}{'std d':>10}{'d > 0':>8}{'p':>8}")
     for col in SUMMARY_FEATURES:
         v = d[col].dropna()
@@ -372,8 +408,14 @@ if __name__ == '__main__':
     qc    = qc_coupling(df_feat.loc[df_feat['used']])
     stats = session_stats(df_feat)
 
+    # S2S and coupling gate of the block, on the used sweeps (Operating Manual Ch. 14.2, 14.6)
+    used_idx = np.flatnonzero(df_feat['used'].to_numpy())
+    gate = block_metrics([sweeps[i] for i in used_idx])
+    t_from = sweeps[used_idx[0]]['t_sec'].iloc[0] if len(used_idx) else np.inf
+    gate['passive_noise_adc'] = passive_noise_adc(args.csv, t_from)
+
     # print the numeric session summary
-    print_summary(df_feat, qc, stats, csv_path.name, state, state_src, settle_s)
+    print_summary(df_feat, qc, gate, stats, csv_path.name, state, state_src, settle_s)
 
     # save features CSV if requested
     if args.out:
@@ -382,7 +424,6 @@ if __name__ == '__main__':
 
     # summary CSV (one row per file) + light-dark comparison
     if args.summary:
-        used_idx = np.flatnonzero(df_feat['used'].to_numpy())
         t_start  = sweeps[used_idx[0]]['pc_timestamp'].iloc[0] if len(used_idx) else np.nan
         row = {
             'file':       csv_path.name,
@@ -394,13 +435,20 @@ if __name__ == '__main__':
             'n_excluded': len(df_feat) - len(used_idx),
             'qc_status':  qc[0],
             'qc_r':       round(qc[1], 4) if pd.notna(qc[1]) else np.nan,
+            'gate':       gate['gate'],
+            'gate_reasons': '; '.join(gate['gate_reasons']),
+            's2s_hz':     round(gate['s2s_hz'], 4),
+            'peak_mean_adc':   round(gate['peak_mean_adc'], 1),
+            'peak_change_pct': round(gate['peak_change_pct'], 1),
+            'r_peak_centroid': round(gate['r_peak_centroid'], 4),
+            'passive_noise_adc': round(gate['passive_noise_adc'], 2),
             **{k: round(v, 4) for k, v in stats.items()},
         }
         print_light_dark_comparison(update_summary(args.summary, row))
 
     # plot dashboard in the graphical window (or save as PNG if requested)
     # panels: centroid, centroid variability, RMS, high frequency ratio, peak amplitude
-    fig = plot_feature_dashboard(df_feat, qc, f'{csv_path.name} ({state})', settle_s)
+    fig = plot_feature_dashboard(df_feat, qc, gate, f'{csv_path.name} ({state})', settle_s)
 
     if args.save:
         out_png = csv_path.stem + '_features.png'

@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: MIT
 """
 ACOUSTIC SENSOR - COMMON CODE
-Shared by 01-04: port detection, CSV loading/cleaning, per-sweep features, plot axis helper.
+Shared by 01-04: port detection, CSV loading/cleaning, per-sweep features,
+S2S and coupling gate of a block, passive noise, plot axis helper.
 """
 
 import numpy as np
@@ -29,6 +30,12 @@ SWEEP_START_MAX_HZ = 1010  # a complete sweep starts at the bottom of the freque
 # plot axes (shared by 03 and 04)
 CENTROID_MIN_HALFSPAN_HZ = 20   # baseline centroid sigma measured 3–25 Hz depending on the session: a baseline must look flat, no autoscale on noise
 DB_MIN_HALFSPAN  = 1.0     # clean-file peak noise 0.1–0.3 dB, bubble effect ~4 dB: noise must look flat
+# coupling gate of one block (Operating Manual Ch. 14.6): set on Trial 5, pre-registered for every later session
+GATE_R_MIN         = -0.85  # r(peak, raw centroid) below this: the centroid follows the coupling, not the bubbles
+GATE_PEAK_DROP_MAX = 0.15   # peak change, mean of the last 3 sweeps vs the first 3: a larger loss inflates the S2S
+GATE_PEAK_MIN_ADC  = 110    # mean peak of the block: below this the S2S is inflated by quantisation noise
+GATE_MIN_SWEEPS    = 20     # fewer sweeps: correlation and S2S not meaningful
+PASSIVE_MAX_ADC    = 2.0    # passive noise (TX off): provisional threshold, reported but not used to exclude blocks
 
 
 #--------------------------
@@ -57,10 +64,11 @@ def find_port():
 
 
 #
-def load_and_segment(csv_path: str):
+def _load_clean(csv_path: str):
     """
-    Loads a CSV produced by 01, drops stale serial-buffer lines and
-    incomplete sweeps, returns the list of complete sweeps (one DataFrame each).
+    Shared by load_and_segment and passive_noise_adc, so both use the same rows and the same time axis.
+    Keeps only what follows the last "# READY", drops META rows, converts to numbers and adds t_sec.
+    Returns (df, n_runs, n_stale).
     """
     df_raw = pd.read_csv(csv_path)
 
@@ -71,8 +79,6 @@ def load_and_segment(csv_path: str):
     # "# BIOREATTORE ACUSTICO" to "# ACOUSTIC BIOREACTOR", so it can't be used)
     header_pos = np.flatnonzero(
         df_raw['raw_line'].astype(str).str.startswith('# READY').to_numpy())
-    if len(header_pos) > 1:
-        print(f"[LOAD] {len(header_pos)} runs in the file, keeping only the last one")
     n_stale  = int(header_pos[-1]) if len(header_pos) else 0
     df_raw   = df_raw.iloc[n_stale:]
 
@@ -85,6 +91,18 @@ def load_and_segment(csv_path: str):
 
     t0 = df_raw['arduino_ms'].min()
     df_raw['t_sec'] = (df_raw['arduino_ms'] - t0) / 1000.0
+    return df_raw, len(header_pos), n_stale
+
+
+#
+def load_and_segment(csv_path: str):
+    """
+    Loads a CSV produced by 01, drops stale serial-buffer lines and
+    incomplete sweeps, returns the list of complete sweeps (one DataFrame each).
+    """
+    df_raw, n_runs, n_stale = _load_clean(csv_path)
+    if n_runs > 1:
+        print(f"[LOAD] {n_runs} runs in the file, keeping only the last one")
 
     sweep_df   = df_raw[df_raw['mode'] == 'S'].copy()
     if sweep_df.empty:
@@ -130,7 +148,7 @@ def extract_feature_single_sweep(freq: np.ndarray, ampl_raw: np.ndarray) -> dict
     """
     # NaN result reused by the early guards below
     nan_feat = {k: np.nan for k in [
-        'centroid_hz', 'peak_freq_hz', 'peak_ampl_db',
+        'centroid_hz', 'centroid_raw_hz', 'peak_freq_hz', 'peak_ampl_db',
         'rms_abs_db', 'high_freq_ratio'
     ]}
 
@@ -201,13 +219,77 @@ def extract_feature_single_sweep(freq: np.ndarray, ampl_raw: np.ndarray) -> dict
     e_low  = ampl_lin[mask_low].sum()  if mask_low.any()  else 1e-9
     high_freq_ratio = e_high / (e_high + e_low + 1e-9)
 
+    # centroid weighted by the RAW in-band ADC amplitude (no normalisation, no threshold):
+    # the centroid used for the S2S (Operating Manual Ch. 14.2); centroid_hz gives S2S values 2-4x higher
+    centroid_raw_hz = sweep_raw(freq, ampl_raw)[0]
+
     return {
         'centroid_hz':        round(centroid_hz,  1),
+        'centroid_raw_hz':    round(centroid_raw_hz, 1),
         'peak_freq_hz':       round(float(peak_freq), 1),
         'peak_ampl_db':       round(float(peak_ampl), 2),
         'rms_abs_db':         round(rms_abs_db, 2),
         'high_freq_ratio':    round(high_freq_ratio, 4),
     }
+
+
+def sweep_raw(freq: np.ndarray, ampl_raw: np.ndarray):
+    """Raw-amplitude centroid (Hz) and peak (ADC) of one sweep inside ANALYSIS_BAND."""
+    f = np.asarray(freq, dtype=float)
+    a = np.asarray(ampl_raw, dtype=float)
+    b = (f >= ANALYSIS_BAND[0]) & (f <= ANALYSIS_BAND[1])
+    if not b.any() or np.ptp(a[b]) < MIN_DYN_ADC:
+        return np.nan, np.nan      # flat sweep (dead sensor / no coupling): same guard as extract_feature_single_sweep
+    return np.dot(f[b], a[b]) / a[b].sum(), a[b].max()
+
+
+def block_metrics(sweeps: list) -> dict:
+    """
+    S2S and coupling-gate quantities of one block (Operating Manual Ch. 14.2 and 14.6).
+    sweeps: the sweeps of the block as returned by load_and_segment (settling already removed).
+    S2S = std of the differences between consecutive raw-amplitude centroids.
+    """
+    cp = np.array([sweep_raw(s['freq_hz'].to_numpy(), s['ampl_adc'].to_numpy()) for s in sweeps]).reshape(-1, 2)
+    cp = cp[np.isfinite(cp).all(axis=1)]          # flat sweeps (in-band range < MIN_DYN_ADC) are left out
+    out = {'n_sweeps': len(cp), 's2s_hz': np.nan, 'peak_mean_adc': np.nan,
+           'peak_change_pct': np.nan, 'r_peak_centroid': np.nan}
+    if len(cp) >= 3:
+        c, p = cp.T
+        out['s2s_hz']          = float(np.std(np.diff(c), ddof=1))
+        out['peak_mean_adc']   = float(p.mean())
+        out['peak_change_pct'] = float(100 * (p[-3:].mean() - p[:3].mean()) / p[:3].mean())
+        if np.std(c) > 0 and np.std(p) > 0:   # constant centroid or peak: no drift to correlate, r stays NaN
+            out['r_peak_centroid'] = float(np.corrcoef(p, c)[0, 1])
+
+    reasons = []
+    if out['n_sweeps'] == 0:
+        reasons.append("no sweep with signal in band")
+    elif out['n_sweeps'] < GATE_MIN_SWEEPS:
+        reasons.append(f"< {GATE_MIN_SWEEPS} sweeps")
+    if out['r_peak_centroid'] < GATE_R_MIN:
+        reasons.append(f"r(peak, raw centroid) < {GATE_R_MIN}")
+    if out['peak_change_pct'] < -100 * GATE_PEAK_DROP_MAX:
+        reasons.append(f"peak drop > {100 * GATE_PEAK_DROP_MAX:.0f} %")
+    if out['peak_mean_adc'] < GATE_PEAK_MIN_ADC:
+        reasons.append(f"mean peak < {GATE_PEAK_MIN_ADC} ADC")
+    out['gate'] = 'FAIL' if reasons else 'PASS'
+    out['gate_reasons'] = reasons
+    return out
+
+
+def passive_noise_adc(csv_path: str, t_from: float = 0.0) -> float:
+    """
+    Passive noise of a block (Operating Manual Ch. 14.6): median over the pauses between sweeps
+    of std(ampl_adc of the P rows of the pause), in ADC. Only P rows with t_sec >= t_from
+    (same time axis as load_and_segment). NaN when the file has no P rows.
+    """
+    df, _, _ = _load_clean(csv_path)
+    if df.empty:
+        return np.nan
+    pause = (df['mode'] != 'P').cumsum()          # a new pause starts after every sweep row
+    sel = (df['mode'] == 'P') & (df['t_sec'] >= t_from)
+    stds = df.loc[sel, 'ampl_adc'].groupby(pause[sel]).agg(lambda v: v.std(ddof=1) if len(v) >= 3 else np.nan).dropna()
+    return float(np.median(stds)) if len(stds) else np.nan
 
 
 #
